@@ -1,8 +1,10 @@
 # Agent OS Kernel
 
-一个基于操作系统设计原理的 AI Agent 运行时内核。
+[![CI](https://github.com/bit-cook/Agent-OS-Kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/bit-cook/Agent-OS-Kernel/actions)
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 🎯 核心理念
+一个基于操作系统设计原理的 AI Agent 运行时内核。
 
 借鉴传统操作系统 50 年的演化经验，为 AI Agent 构建一个真正的"操作系统"：
 
@@ -50,7 +52,8 @@
 - 最大化 KV-Cache 命中率
 
 ```python
-# 使用示例
+from agent_os_kernel import ContextManager
+
 context_manager = ContextManager(max_context_tokens=100000)
 
 # 分配上下文页面
@@ -64,11 +67,6 @@ page_id = context_manager.allocate_page(
 page = context_manager.access_page(page_id)
 ```
 
-**关键特性：**
-- ✅ 透明的上下文管理（Agent 无需关心换入换出）
-- ✅ 多因素页面置换（时间、频率、重要性）
-- ✅ 资源使用统计和监控
-
 ### 2. Process Scheduler（进程调度器）
 
 **类比：操作系统进程调度**
@@ -79,7 +77,8 @@ page = context_manager.access_page(page_id)
 - 资源配额管理
 
 ```python
-# 使用示例
+from agent_os_kernel import AgentScheduler, AgentProcess
+
 scheduler = AgentScheduler(time_slice=60.0)
 
 # 创建 Agent 进程
@@ -96,12 +95,6 @@ scheduler.add_process(process)
 process = scheduler.schedule()
 ```
 
-**关键特性：**
-- ✅ 公平调度与优先级平衡
-- ✅ API 配额管理（防止超限）
-- ✅ 自动抢占长时间运行的进程
-- ✅ 资源使用追踪
-
 ### 3. Storage Layer（存储层）
 
 **类比：文件系统 + 数据库**
@@ -111,56 +104,23 @@ process = scheduler.schedule()
 - 审计日志（Audit Trail）
 - 向量检索（语义搜索）
 
+支持两种存储后端：
+- **MemoryStorage**: 内存存储（开发和测试）
+- **PostgreSQLStorage**: PostgreSQL + pgvector（生产环境）
+
 ```python
-# 使用示例
+from agent_os_kernel import StorageManager
+
+# 内存存储
 storage = StorageManager()
 
-# 保存检查点
-checkpoint_id = storage.save_checkpoint(process)
-
-# 恢复检查点
-process = storage.restore_checkpoint(checkpoint_id)
-
-# 审计日志
-storage.log_action(
-    agent_pid="agent-001",
-    action_type="tool_call",
-    input_data={"query": "..."},
-    output_data={"result": "..."},
-    reasoning="I need to search for information..."
+# PostgreSQL 存储
+storage = StorageManager.from_postgresql(
+    "postgresql://user:pass@localhost:5432/agent_os"
 )
 ```
 
-**生产环境推荐：PostgreSQL**
-
-```sql
--- 核心表结构
-CREATE TABLE agent_processes (
-    pid UUID PRIMARY KEY,
-    name VARCHAR(255),
-    state VARCHAR(50),
-    context_snapshot JSONB,
-    ...
-);
-
-CREATE TABLE context_storage (
-    context_id UUID PRIMARY KEY,
-    agent_pid UUID,
-    content TEXT,
-    embedding vector(1536),  -- pgvector
-    ...
-);
-
-CREATE TABLE audit_logs (
-    log_id UUID PRIMARY KEY,
-    agent_pid UUID,
-    action_type VARCHAR(100),
-    reasoning TEXT,
-    ...
-);
-```
-
-### 4. I/O Manager（I/O 管理器）
+### 4. Tool System（工具系统）
 
 **类比：设备驱动 + 系统调用**
 
@@ -170,6 +130,8 @@ CREATE TABLE audit_logs (
 - 统一的错误处理
 
 ```python
+from agent_os_kernel import Tool, ToolRegistry
+
 # 定义工具
 class CalculatorTool(Tool):
     def name(self) -> str:
@@ -205,16 +167,36 @@ result = tool.execute(expression="2 + 2")
 - 决策过程可视化
 - 执行回放功能
 
+```python
+from agent_os_kernel import SandboxManager, SecurityPolicy
+
+sandbox = SandboxManager()
+policy = SecurityPolicy(
+    max_memory_mb=512,
+    max_cpu_percent=50,
+    allowed_paths=["/tmp", "/workspace"]
+)
+
+# 创建沙箱
+sandbox_id = sandbox.create_sandbox("agent-001", policy)
+
+# 在沙箱中执行
+result = sandbox.execute_in_sandbox("agent-001", "ls -la")
+```
+
 ## 🚀 快速开始
 
-### 安装依赖
+### 安装
 
 ```bash
-# 基础版本（只需 Python 标准库）
-python agent_os_kernel.py
+# 基础版本（仅 Python 标准库）
+pip install agent-os-kernel
 
-# 生产版本（需要额外依赖）
-pip install psycopg2-binary pgvector docker openai anthropic
+# 完整功能
+pip install agent-os-kernel[all]
+
+# 特定功能
+pip install agent-os-kernel[postgres,claude,docker]
 ```
 
 ### 创建第一个 Agent
@@ -239,69 +221,53 @@ kernel.run(max_iterations=10)
 kernel.print_status()
 ```
 
-### 与真实 LLM 集成
+### 与 Claude API 集成
 
 ```python
-import anthropic
+import os
+from agent_os_kernel import ClaudeIntegratedKernel
 
-class ClaudeAgent:
-    def __init__(self, kernel: AgentOSKernel, process: AgentProcess):
-        self.kernel = kernel
-        self.process = process
-        self.client = anthropic.Anthropic()
-    
-    def think(self) -> dict:
-        # 获取上下文
-        context = self.kernel.context_manager.get_agent_context(
-            self.process.pid
-        )
-        
-        # 调用 Claude API
-        response = self.client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1000,
-            messages=[
-                {"role": "user", "content": context}
-            ]
-        )
-        
-        # 解析响应
-        return {
-            "reasoning": response.content[0].text,
-            "action": self.parse_action(response),
-        }
-    
-    def parse_action(self, response):
-        # 解析 LLM 输出中的工具调用
-        # 实际实现需要根据具体的提示词格式
-        pass
+# 设置 API 密钥
+os.environ["ANTHROPIC_API_KEY"] = "your-api-key"
+
+# 创建内核
+kernel = ClaudeIntegratedKernel()
+
+# 创建 Agent
+agent_pid = kernel.spawn_agent(
+    name="ResearchAssistant",
+    task="Find information about AI agents",
+    priority=30
+)
+
+# 运行
+kernel.run(max_iterations=5)
 ```
 
 ## 📊 性能指标
 
 ### Context Manager
-- **内存效率**：90%+ 上下文利用率
-- **Cache 命中率**：目标 70%+（降低 10x 成本）
-- **换页延迟**：< 100ms
+- **内存效率**: 90%+ 上下文利用率
+- **Cache 命中率**: 目标 70%+（降低 10x 成本）
+- **换页延迟**: < 100ms
 
 ### Process Scheduler
-- **调度延迟**：< 10ms
-- **公平性**：±5% 资源分配偏差
-- **吞吐量**：1000+ 进程/小时
+- **调度延迟**: < 10ms
+- **公平性**: ±5% 资源分配偏差
+- **吞吐量**: 1000+ 进程/小时
 
 ### Storage Layer
-- **写入延迟**：< 50ms（PostgreSQL）
-- **查询延迟**：< 100ms（向量检索）
-- **审计完整性**：100%（所有操作可追溯）
+- **写入延迟**: < 50ms（PostgreSQL）
+- **查询延迟**: < 100ms（向量检索）
+- **审计完整性**: 100%（所有操作可追溯）
 
 ## 🎓 设计原则
 
 ### 1. 向操作系统学习
-
-- **虚拟内存思想**：透明的资源管理
-- **进程抽象**：统一的生命周期
-- **分层架构**：清晰的职责边界
-- **标准接口**：一致的 API 设计
+- **虚拟内存思想**: 透明的资源管理
+- **进程抽象**: 统一的生命周期
+- **分层架构**: 清晰的职责边界
+- **标准接口**: 一致的 API 设计
 
 ### 2. 关键权衡
 
@@ -313,38 +279,48 @@ class ClaudeAgent:
 | **安全模型** | 沙箱 + 审计 | 限制能力 + 建立信任 |
 
 ### 3. 未来扩展
-
 - [ ] 分布式调度（多节点）
 - [ ] GPU 资源管理
 - [ ] 热迁移（进程在节点间迁移）
 - [ ] 自适应调度（基于 RL）
 - [ ] 联邦学习支持
 
-## 📚 参考文献
+## 📁 项目结构
 
-### 操作系统
-- *Operating System Concepts* (Silberschatz et al.) - 经典教材
-- *Modern Operating Systems* (Tanenbaum) - 现代系统设计
-
-### AI Agent
-- [Manus: Context Engineering for AI Agents](https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus)
-- [DeepSeek Engram: Memory Hierarchy for Agents](https://github.com/deepseek-ai/Engram)
-- [AI Agent 的操作系统时刻](https://vonng.com/db/agent-os/)
-
-### 数据库
-- *Designing Data-Intensive Applications* (Martin Kleppmann)
-- PostgreSQL 官方文档
+```
+agent-os-kernel/
+├── agent_os_kernel/          # 核心包
+│   ├── core/                 # 核心模块
+│   │   ├── types.py          # 数据类型定义
+│   │   ├── context_manager.py # 上下文管理器
+│   │   ├── scheduler.py      # 进程调度器
+│   │   ├── storage.py        # 存储层
+│   │   └── security.py       # 安全子系统
+│   ├── tools/                # 工具系统
+│   │   ├── base.py           # 工具基类
+│   │   ├── registry.py       # 工具注册表
+│   │   └── builtin.py        # 内置工具
+│   ├── integrations/         # 集成模块
+│   │   └── claude_integration.py  # Claude API 集成
+│   └── kernel.py             # 主内核
+├── tests/                    # 测试套件
+├── examples/                 # 使用示例
+├── docs/                     # 文档
+├── pyproject.toml            # 项目配置
+├── requirements.txt          # 依赖
+└── README.md                 # 本文件
+```
 
 ## 🤝 贡献
 
 欢迎贡献！这个项目正在快速演化。
 
 关键领域：
-1. **Context Manager**：更智能的换页算法
-2. **Scheduler**：更好的公平性和吞吐量
-3. **Storage**：真实的 PostgreSQL 集成
-4. **Security**：完整的沙箱和审计
-5. **Tools**：更多的 Agent-Native CLI 包装
+1. **Context Manager**: 更智能的换页算法
+2. **Scheduler**: 更好的公平性和吞吐量
+3. **Storage**: 真实的 PostgreSQL 集成
+4. **Security**: 完整的沙箱和审计
+5. **Tools**: 更多的 Agent-Native CLI 包装
 
 ## 📄 许可证
 

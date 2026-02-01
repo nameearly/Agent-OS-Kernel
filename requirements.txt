@@ -1,0 +1,17 @@
+# Agent OS Kernel - 基础依赖
+# 核心功能仅使用 Python 标准库
+
+# 可选依赖（根据需要使用）:
+
+# PostgreSQL 存储后端
+# psycopg2-binary>=2.9.0
+# pgvector>=0.2.0
+
+# Claude API 集成
+# anthropic>=0.20.0
+
+# OpenAI API 集成
+# openai>=1.0.0
+
+# Docker 沙箱
+# docker>=6.0.0
