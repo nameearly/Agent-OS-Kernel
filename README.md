@@ -11,7 +11,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](./docs)
 
-[English](#) | [中文](#) | [文档](https://github.com/bit-cook/Agent-OS-Kernel/wiki) | [示例](./examples) | [更新日志](./CHANGELOG.md)
+[English](./README_EN.md) | [中文](./README.md) | [文档](https://github.com/bit-cook/Agent-OS-Kernel/wiki) | [示例](./examples) | [更新日志](./CHANGELOG.md)
 
 </div>
 
