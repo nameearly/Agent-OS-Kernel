@@ -257,9 +257,12 @@ agent_pid = kernel.spawn_agent(
 kernel.run(max_iterations=5)
 
 # 查看审计追踪
+from datetime import datetime
+
 audit = kernel.get_audit_trail(agent_pid)
 for log in audit:
-    print(f"[{log.timestamp}] {log.action_type}: {log.reasoning[:100]}...")
+    time_str = datetime.fromtimestamp(log.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[{time_str}] {log.action_type}: {log.reasoning[:100]}...")
 ```
 
 #### 💾 使用 PostgreSQL 持久化
@@ -304,7 +307,7 @@ policy = SecurityPolicy(
     max_memory_mb=512,
     max_cpu_percent=50,
     allowed_paths=["/tmp", "/workspace"],
-    blocked_paths=[/"etc", "/root"],
+    blocked_paths=["/etc", "/root"],
     allowed_tools=["calculator", "read_file"],
     network_enabled=False  # 禁用网络访问
 )
@@ -415,6 +418,7 @@ results = storage.semantic_search(
 
 ```python
 from agent_os_kernel import Tool, ToolRegistry
+from agent_os_kernel.tools.base import ToolParameter
 
 # 定义自定义工具
 class DatabaseQueryTool(Tool):
@@ -430,7 +434,8 @@ class DatabaseQueryTool(Tool):
         ]
     
     def execute(self, sql: str, **kwargs):
-        # 执行查询...
+        # 执行查询（示例）
+        results = ["row1", "row2"]  # 实际应执行数据库查询
         return {"success": True, "data": results}
 
 # 注册并使用
@@ -451,7 +456,7 @@ registry.auto_discover_cli_tools()  # 自动注册 grep, find, curl 等
 
 | 指标 | 数值 | 说明 |
 |------|------|------|
-| **上下文利用率** | 92% | 相比原生 API 调用提升 40% |
+| **上下文利用率** | 92% | 相比原生上下文窗口利用率提升 40% |
 | **KV-Cache 命中率** | 75% | 降低 8x API 成本 |
 | **页面换入延迟** | 45ms | P95 延迟 |
 | **内存开销** | < 50MB | 每 1000 页面 |
@@ -678,7 +683,7 @@ agent-os-kernel/
 
 ## 📄 许可证
 
-[MIT License](./LICENSE) © 2026 Bit-Cook
+MIT License © 2026 Bit-Cook
 
 ---
 
