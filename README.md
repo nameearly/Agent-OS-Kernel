@@ -488,7 +488,7 @@ black agent_os_kernel/ tests/
 - [API 参考](docs/api-reference.md)
 - [最佳实践](docs/best-practices.md)
 - [分布式部署](docs/distributed-deployment.md)
-- [三日完善计划](3DAY_PLAN.md)
+- [Development Plans](development-docs/3DAY_PLAN.md)
 
 ---
 
@@ -524,7 +524,7 @@ black agent_os_kernel/ tests/
 
 - [AIOS_ANALYSIS.md](./AIOS_ANALYSIS.md) - AIOS 深度分析文档
 - [INSPIRATION.md](./INSPIRATION.md) - GitHub 项目灵感收集
-- [三日完善计划](3DAY_PLAN.md) - 项目开发计划
+- [Development Plans](development-docs/3DAY_PLAN.md) - 项目开发计划
 
 ---
 
