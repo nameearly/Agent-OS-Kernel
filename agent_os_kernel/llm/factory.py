@@ -252,3 +252,21 @@ def get_factory() -> LLMProviderFactory:
 def create_provider(config: LLMConfig) -> LLMProvider:
     """便捷创建函数"""
     return get_factory().create(config)
+
+    def create_mock(self, model: str = "mock-model") -> 'MockProvider':
+        """
+        创建 Mock Provider (用于测试)
+        
+        Args:
+            model: 模型名称
+        
+        Returns:
+            MockProvider 实例
+        """
+        from .mock_provider import MockProvider
+        config = LLMConfig(
+            provider="mock",
+            model=model,
+            api_key="mock-key"
+        )
+        return MockProvider(config)
