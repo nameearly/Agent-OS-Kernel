@@ -5,6 +5,12 @@ Exceptions - 异常定义
 标准化的异常层次结构，便于错误处理和调试
 """
 
+from typing import Callable, Dict, Optional, TypeVar, Any
+from datetime import datetime
+
+
+T = TypeVar('T')
+
 
 class AgentOSKernelError(Exception):
     """基础异常"""
@@ -20,12 +26,12 @@ class AgentOSKernelError(Exception):
 
 
 class AgentError(AgentOSKernelError):
-    """Agent 相关异常"""
+    """Agent 相关错误"""
     pass
 
 
 class AgentNotFoundError(AgentError):
-    """Agent 未找到"""
+    """Agent 不存在"""
     pass
 
 
@@ -45,7 +51,7 @@ class AgentTimeoutError(AgentError):
 
 
 class ContextError(AgentOSKernelError):
-    """上下文相关异常"""
+    """上下文相关错误"""
     pass
 
 
@@ -55,17 +61,17 @@ class ContextOverflowError(ContextError):
 
 
 class ContextNotFoundError(ContextError):
-    """上下文未找到"""
+    """上下文不存在"""
     pass
 
 
 class PageFaultError(ContextError):
-    """缺页异常"""
+    """页错误"""
     pass
 
 
 class StorageError(AgentOSKernelError):
-    """存储相关异常"""
+    """存储相关错误"""
     pass
 
 
@@ -80,7 +86,7 @@ class StorageOperationError(StorageError):
 
 
 class CheckpointError(StorageError):
-    """检查点相关异常"""
+    """检查点错误"""
     pass
 
 
@@ -96,6 +102,16 @@ class SchedulerFullError(SchedulerError):
 
 class SchedulingError(SchedulerError):
     """调度失败"""
+    pass
+
+
+class TaskError(AgentOSKernelError):
+    """Task 执行错误"""
+    pass
+
+
+class TaskTimeoutError(TaskError):
+    """Task 超时错误"""
     pass
 
 
@@ -115,7 +131,7 @@ class SandboxViolationError(SecurityError):
 
 
 class ValidationError(AgentOSKernelError):
-    """验证失败"""
+    """验证错误"""
     pass
 
 
@@ -124,63 +140,102 @@ class ConfigurationError(AgentOSKernelError):
     pass
 
 
-from datetime import datetime
-
-
 class ErrorHandler:
     """错误处理器"""
     
     def __init__(self):
-        self._handlers: Dict[str, Callable] = {}
-        self._error_counts: Dict[str, int] = {}
+        self._handlers: Dict[type, Callable] = {}
+        self._default_handler: Optional[Callable] = None
+        self._error_counts: Dict[type, int] = {}
     
     def register(self, error_type: type, handler: Callable):
-        """注册处理器"""
-        self._handlers[error_type.__name__] = handler
+        """注册错误处理器"""
+        self._handlers[error_type] = handler
     
-    def handle(self, error: Exception) -> dict:
-        """处理异常"""
-        error_type = type(error).__name__
+    def set_default(self, handler: Callable):
+        """设置默认处理器"""
+        self._default_handler = handler
+    
+    def handle(self, error: Exception) -> bool:
+        """处理错误"""
+        error_type = type(error)
         
-        # 更新计数
-        self._error_counts[error_type] = (
-            self._error_counts.get(error_type, 0) + 1
-        )
-        
-        # 调用处理器
+        # 检查注册的处理器
         if error_type in self._handlers:
-            return self._handlers[error_type](error)
+            self._handlers[error_type](error)
+            self._error_counts[error_type] = self._error_counts.get(error_type, 0) + 1
+            return True
         
-        # 默认处理
-        return {
-            "type": error_type,
-            "message": str(error),
-            "handled": False
-        }
+        # 检查父类处理器
+        for handler_type, handler in self._handlers.items():
+            if isinstance(error, handler_type):
+                handler(error)
+                self._error_counts[error_type] = self._error_counts.get(error_type, 0) + 1
+                return True
+        
+        # 使用默认处理器
+        if self._default_handler:
+            self._default_handler(error)
+            return True
+        
+        return False
     
-    def get_stats(self) -> Dict:
-        """获取错误统计"""
-        return self._error_counts.copy()
+    def get_stats(self) -> Dict[str, Any]:
+        """获取统计信息"""
+        return {
+            "total_errors": sum(self._error_counts.values()),
+            "by_type": self._error_counts.copy(),
+            "handlers_registered": len(self._handlers),
+        }
 
 
-# 便捷函数
-def create_error_handler() -> ErrorHandler:
-    """创建错误处理器"""
-    return ErrorHandler()
-
-
-def retry(max_retries: int = 3, delay: float = 1.0):
+class retry:
     """重试装饰器"""
-    def decorator(func):
-        async def wrapper(*args, **kwargs):
-            last_error = None
-            for attempt in range(max_retries):
+    
+    def __init__(
+        self,
+        max_attempts: int = 3,
+        delay: float = 1.0,
+        backoff: float = 2.0,
+        exceptions: tuple = (Exception,)
+    ):
+        self.max_attempts = max_attempts
+        self.delay = delay
+        self.backoff = backoff
+        self.exceptions = exceptions
+    
+    def __call__(self, func: Callable[..., T]) -> Callable[..., T]:
+        """装饰器调用"""
+        
+        def wrapper(*args, **kwargs) -> T:
+            """包装函数"""
+            attempt = 0
+            current_delay = self.delay
+            
+            while attempt < self.max_attempts:
                 try:
-                    return await func(*args, **kwargs)
-                except Exception as e:
-                    last_error = e
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(delay * (attempt + 1))
-            raise last_error
+                    return func(*args, **kwargs)
+                except self.exceptions as e:
+                    attempt += 1
+                    
+                    if attempt >= self.max_attempts:
+                        raise
+                    
+                    # 记录重试
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        f"Retry attempt {attempt}/{self.max_attempts} "
+                        f"after {current_delay:.2f}s: {e}"
+                    )
+                    
+                    # 等待后重试
+                    import time
+                    time.sleep(current_delay)
+                    
+                    # 指数退避
+                    current_delay *= self.backoff
+            
+            raise RuntimeError("Should not reach here")
+        
         return wrapper
-    return decorator
