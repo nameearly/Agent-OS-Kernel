@@ -6,13 +6,13 @@
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional, Callable
-from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
 import yaml
 import json
 import hashlib
+from typing import Dict, Any, Optional, Callable
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,12 @@ class ConfigSection:
     name: str
     data: Dict[str, Any]
     version: int = 0
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = None
     hash: str = ""
+    
+    def __post_init__(self):
+        if self.updated_at is None:
+            self.updated_at = datetime.utcnow()
 
 
 class ConfigManager:
@@ -36,14 +40,6 @@ class ConfigManager:
         enable_hot_reload: bool = True,
         hot_reload_interval: int = 30
     ):
-        """
-        初始化配置管理器
-        
-        Args:
-            config_dir: 配置目录
-            enable_hot_reload: 是否启用热加载
-            hot_reload_interval: 热加载间隔（秒）
-        """
         self.config_dir = Path(config_dir)
         self.enable_hot_reload = enable_hot_reload
         self.hot_reload_interval = hot_reload_interval
@@ -80,22 +76,13 @@ class ConfigManager:
         logger.info("ConfigManager shutdown")
     
     async def load(self, name: str, file_path: str = None) -> bool:
-        """
-        加载配置文件
-        
-        Args:
-            name: 配置名称
-            file_path: 文件路径
-            
-        Returns:
-            是否成功
-        """
+        """加载配置"""
         path = Path(file_path) if file_path else self.config_dir / f"{name}.yaml"
         
         try:
             with open(path, 'r') as f:
-                if path.suffix == '.yaml' or path.suffix == '.yml':
-                    data = yaml.safe_load(f)
+                if path.suffix in ['.yaml', '.yml']:
+                    data = yaml.safe_load(f) or {}
                 elif path.suffix == '.json':
                     data = json.load(f)
                 else:
@@ -105,7 +92,7 @@ class ConfigManager:
             
             config = ConfigSection(
                 name=name,
-                data=data or {},
+                data=data,
                 version=1,
                 hash=hash_str
             )
@@ -114,7 +101,6 @@ class ConfigManager:
                 old_hash = self._configs.get(name, ConfigSection(name=name, data={})).hash
                 self._configs[name] = config
             
-            # 通知变更
             if old_hash != hash_str:
                 await self._notify_change(name, config)
             
@@ -134,17 +120,7 @@ class ConfigManager:
             await self.load(path.stem)
     
     async def get(self, name: str, key: str = None, default: Any = None) -> Any:
-        """
-        获取配置
-        
-        Args:
-            name: 配置名称
-            key: 配置键
-            default: 默认值
-            
-        Returns:
-            配置值
-        """
+        """获取配置"""
         async with self._lock:
             config = self._configs.get(name)
         
@@ -195,7 +171,6 @@ class ConfigManager:
             try:
                 await asyncio.sleep(self.hot_reload_interval)
                 
-                # 检查文件变更
                 for path in self.config_dir.glob("*.yaml"):
                     name = path.stem
                     mtime = path.stat().st_mtime

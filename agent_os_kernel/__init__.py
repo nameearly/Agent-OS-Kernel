@@ -51,7 +51,7 @@ from .core.workflow_engine import WorkflowEngine, Workflow, WorkflowNode
 from .core.event_bus import Event as CoreEvent
 from .core.event_bus_enhanced import EnhancedEventBus, EventType, EventPriority
 from .core.storage_enhanced import EnhancedStorageManager, StorageRole
-from .core.circuit_breaker import CircuitBreaker, CircuitState, CircuitConfig
+from .core.circuit_breaker import CircuitBreaker, CircuitState, CircuitConfig, get_circuit_breaker, get_circuit_breaker_manager
 from .core.agent_registry import AgentRegistry, AgentMetadata
 from .core.rate_limiter import RateLimiter, RateLimitConfig
 from .core.agent_pool import AgentPool, PooledAgent

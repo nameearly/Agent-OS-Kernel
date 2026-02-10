@@ -1,28 +1,25 @@
 # -*- coding: utf-8 -*-
 """Event Bus - 事件总线
 
-基于发布/订阅模式的事件驱动架构组件。
+发布/订阅模式的事件驱动架构。
 """
 
 import asyncio
 import logging
-from typing import Dict, List, Callable, Optional, Any, Set
-from dataclasses import dataclass, field
-from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
+from dataclasses import dataclass
 from datetime import datetime
-import uuid
-from collections import defaultdict
-import json
+from enum import Enum
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
 
 class EventPriority(Enum):
     """事件优先级"""
-    LOW = 1
-    NORMAL = 5
-    HIGH = 10
-    CRITICAL = 100
+    LOW = 0
+    NORMAL = 1
+    HIGH = 2
 
 
 @dataclass
@@ -31,23 +28,23 @@ class Event:
     event_id: str
     event_type: str
     payload: Dict[str, Any]
+    timestamp: datetime = None
     priority: EventPriority = EventPriority.NORMAL
-    timestamp: datetime = field(default_factory=datetime.utcnow)
-    source: Optional[str] = None
-    correlation_id: Optional[str] = None
-    metadata: Dict = field(default_factory=dict)
+    source: str = ""
     
-    def to_dict(self) -> Dict:
-        return {
-            "event_id": self.event_id,
-            "event_type": self.event_type,
-            "payload": self.payload,
-            "priority": self.priority.value,
-            "timestamp": self.timestamp.isoformat(),
-            "source": self.source,
-            "correlation_id": self.correlation_id,
-            "metadata": self.metadata
-        }
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.utcnow()
+    
+    @classmethod
+    def create(cls, event_type: str, payload: Dict = None, **kwargs) -> "Event":
+        """创建事件"""
+        return cls(
+            event_id=str(uuid4()),
+            event_type=event_type,
+            payload=payload or {},
+            **kwargs
+        )
 
 
 @dataclass
@@ -57,57 +54,47 @@ class Subscription:
     event_type: str
     handler: Callable
     priority: EventPriority = EventPriority.NORMAL
-    filter: Optional[Callable[[Event], bool]] = None
-    max_events: Optional[int] = None
-    received_count: int = 0
+    filter: Optional[Callable] = None
     active: bool = True
 
 
 class EventBus:
     """事件总线"""
     
-    def __init__(
-        self,
-        max_queue_size: int = 10000,
-        enable_audit: bool = True
-    ):
+    def __init__(self, max_queue_size: int = 10000):
         """
         初始化事件总线
         
         Args:
             max_queue_size: 最大队列大小
-            enable_audit: 是否启用审计
         """
         self.max_queue_size = max_queue_size
-        self.enable_audit = enable_audit
         
-        self._subscriptions: Dict[str, List[Subscription]] = defaultdict(list)
-        self._wildcards: List[Subscription] = []
+        self._subscriptions: Dict[str, List[Subscription]] = {}
+        self._wildcard_subscriptions: List[Subscription] = []
         self._event_queue: asyncio.Queue = asyncio.Queue(maxsize=max_queue_size)
-        
-        self._handlers: Dict[str, Set[Callable]] = defaultdict(set)
-        
         self._running = False
         self._worker_task: Optional[asyncio.Task] = None
+        self._lock = asyncio.Lock()
         
-        self._stats = {
-            "events_published": 0,
-            "events_delivered": 0,
-            "events_failed": 0,
-            "subscribers": 0
+        # 指标
+        self._metrics = {
+            "published": 0,
+            "processed": 0,
+            "handlers_called": 0
         }
         
-        logger.info(f"EventBus initialized: max_queue={max_queue_size}")
+        logger.info("EventBus initialized")
     
     async def initialize(self):
-        """初始化事件总线"""
+        """初始化"""
         if not self._running:
             self._running = True
             self._worker_task = asyncio.create_task(self._process_events())
             logger.info("EventBus started")
     
     async def shutdown(self):
-        """关闭事件总线"""
+        """关闭"""
         self._running = False
         if self._worker_task:
             self._worker_task.cancel()
@@ -128,175 +115,155 @@ class EventBus:
         订阅事件
         
         Args:
-            event_type: 事件类型 (支持通配符如 "agent.*")
+            event_type: 事件类型
             handler: 处理函数
             priority: 优先级
-            filter: 过滤函数
+            filter: 过滤器
             
         Returns:
             订阅 ID
         """
-        if "*" in event_type or "?" in event_type:
-            subscription = Subscription(
-                subscription_id=str(uuid.uuid4()),
-                event_type=event_type,
-                handler=handler,
-                priority=priority,
-                filter=filter
-            )
-            self._wildcards.append(subscription)
-        else:
-            subscription = Subscription(
-                subscription_id=str(uuid.uuid4()),
-                event_type=event_type,
-                handler=handler,
-                priority=priority,
-                filter=filter
-            )
-            self._subscriptions[event_type].append(subscription)
+        subscription = Subscription(
+            subscription_id=str(uuid4()),
+            event_type=event_type,
+            handler=handler,
+            priority=priority,
+            filter=filter
+        )
         
-        self._stats["subscribers"] += 1
+        if event_type not in self._subscriptions:
+            self._subscriptions[event_type] = []
         
-        logger.debug(f"Subscribed to {event_type}: {subscription.subscription_id}")
+        self._subscriptions[event_type].append(subscription)
+        self._subscriptions[event_type].sort(
+            key=lambda s: s.priority.value,
+            reverse=True
+        )
+        
+        logger.debug(f"Subscribed to {event_type}")
+        
+        return subscription.subscription_id
+    
+    def subscribe_wildcard(self, handler: Callable) -> str:
+        """订阅所有事件"""
+        subscription = Subscription(
+            subscription_id=str(uuid4()),
+            event_type="*",
+            handler=handler
+        )
+        self._wildcard_subscriptions.append(subscription)
         return subscription.subscription_id
     
     def unsubscribe(self, subscription_id: str) -> bool:
         """取消订阅"""
-        # 检查精确匹配
+        # 检查类型订阅
         for event_type, subs in self._subscriptions.items():
             for sub in subs:
                 if sub.subscription_id == subscription_id:
                     subs.remove(sub)
-                    self._stats["subscribers"] -= 1
                     return True
         
-        # 检查通配符
-        for sub in self._wildcards:
+        # 检查通配符订阅
+        for sub in self._wildcard_subscriptions:
             if sub.subscription_id == subscription_id:
-                self._wildcards.remove(sub)
-                self._stats["subscribers"] -= 1
+                self._wildcard_subscriptions.remove(sub)
                 return True
         
         return False
     
-    async def publish(
+    async def publish(self, event: Event) -> bool:
+        """发布事件"""
+        if not self._running:
+            await self.initialize()
+        
+        try:
+            await asyncio.wait_for(
+                self._event_queue.put(event),
+                timeout=1.0
+            )
+            
+            async with self._lock:
+                self._metrics["published"] += 1
+            
+            return True
+            
+        except asyncio.TimeoutError:
+            logger.warning("Event queue full, event dropped")
+            return False
+    
+    async def publish_event(
         self,
         event_type: str,
         payload: Dict = None,
-        priority: EventPriority = EventPriority.NORMAL,
-        source: Optional[str] = None,
-        correlation_id: Optional[str] = None,
-        blocking: bool = False
-    ) -> str:
-        """
-        发布事件
-        
-        Args:
-            event_type: 事件类型
-            payload: 事件数据
-            priority: 优先级
-            source: 来源
-            correlation_id: 关联 ID
-            blocking: 是否阻塞
-            
-        Returns:
-            事件 ID
-        """
-        event = Event(
-            event_id=str(uuid.uuid4()),
-            event_type=event_type,
-            payload=payload or {},
-            priority=priority,
-            source=source,
-            correlation_id=correlation_id
-        )
-        
-        self._stats["events_published"] += 1
-        
-        if blocking:
-            await self._dispatch_event(event)
-        else:
-            try:
-                self._event_queue.put_nowait(event)
-            except asyncio.QueueFull:
-                logger.warning(f"Event queue full, dropping event: {event.event_id}")
-                self._stats["events_failed"] += 1
-        
-        return event.event_id
+        **kwargs
+    ) -> bool:
+        """便捷发布方法"""
+        event = Event.create(event_type, payload, **kwargs)
+        return await self.publish(event)
     
     async def _process_events(self):
-        """处理事件队列"""
+        """处理事件"""
         while self._running:
             try:
-                event = await asyncio.wait_for(
-                    self._event_queue.get(),
-                    timeout=1.0
-                )
-                await self._dispatch_event(event)
-                
-            except asyncio.TimeoutError:
-                continue
+                event = await self._event_queue.get()
+                asyncio.create_task(self._dispatch_event(event))
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Event processing error: {e}")
-                self._stats["events_failed"] += 1
     
     async def _dispatch_event(self, event: Event):
         """分发事件"""
-        # 获取精确匹配的订阅者
-        subscribers = self._subscriptions.get(event.event_type, [])
+        handlers_called = 0
         
-        # 获取通配符匹配的订阅者
-        for sub in self._wildcards:
-            if self._match_wildcard(sub.event_type, event.event_type):
-                subscribers.append(sub)
+        # 获取订阅者
+        subs = self._subscriptions.get(event.event_type, []).copy()
         
-        # 按优先级排序
-        subscribers.sort(key=lambda x: x.priority.value, reverse=True)
+        # 添加通配符订阅者
+        subs.extend(self._wildcard_subscriptions)
         
-        # 并发处理
-        tasks = []
-        for sub in subscribers:
-            if sub.active and (not sub.filter or sub.filter(event)):
-                tasks.append(self._handle_subscription(event, sub))
-        
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        
-        self._stats["events_delivered"] += len(tasks)
-    
-    async def _handle_subscription(self, event: Event, sub: Subscription):
-        """处理单个订阅"""
-        try:
-            if asyncio.iscoroutinefunction(sub.handler):
-                await sub.handler(event)
-            else:
-                sub.handler(event)
+        # 调用处理函数
+        for sub in subs:
+            if not sub.active:
+                continue
             
-            sub.received_count += 1
+            # 检查过滤器
+            if sub.filter and not sub.filter(event):
+                continue
             
-        except Exception as e:
-            logger.error(f"Handler error for {sub.subscription_id}: {e}")
-            self._stats["events_failed"] += 1
-    
-    def _match_wildcard(self, pattern: str, event_type: str) -> bool:
-        """通配符匹配"""
-        import fnmatch
-        return fnmatch.fnmatch(event_type, pattern)
+            try:
+                if asyncio.iscoroutinefunction(sub.handler):
+                    await sub.handler(event)
+                else:
+                    sub.handler(event)
+                
+                handlers_called += 1
+                
+            except Exception as e:
+                logger.error(f"Handler error: {e}")
+        
+        async with self._lock:
+            self._metrics["processed"] += 1
+            self._metrics["handlers_called"] += handlers_called
     
     def get_stats(self) -> Dict:
         """获取统计"""
         return {
-            "published": self._stats["events_published"],
-            "delivered": self._stats["events_delivered"],
-            "failed": self._stats["events_failed"],
-            "subscribers": self._stats["subscribers"],
+            "published": self._metrics["published"],
+            "processed": self._metrics["processed"],
+            "handlers_called": self._metrics["handlers_called"],
+            "subscribers_count": sum(len(s) for s in self._subscriptions.values()),
+            "wildcard_subscribers": len(self._wildcard_subscriptions),
             "queue_size": self._event_queue.qsize()
         }
+    
+    def get_subscribers(self, event_type: str = None) -> List[Subscription]:
+        """获取订阅者"""
+        if event_type:
+            return self._subscriptions.get(event_type, []).copy()
+        return list(self._wildcard_subscriptions)
 
 
-# 便捷函数
 def create_event_bus(**kwargs) -> EventBus:
     """创建事件总线"""
     return EventBus(**kwargs)
