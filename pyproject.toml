@@ -52,7 +52,7 @@ Repository = "https://github.com/bit-cook/Agent-OS-Kernel"
 Issues = "https://github.com/bit-cook/Agent-OS-Kernel/issues"
 
 [project.scripts]
-agent-os-kernel = "agent_os_kernel:main"
+agent-os-kernel = "agent_os_kernel.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["agent_os_kernel*"]

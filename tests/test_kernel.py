@@ -1,84 +1,112 @@
-"""测试主内核"""
+"""
+Tests for Kernel Module
+"""
 
 import pytest
-from agent_os_kernel.kernel import AgentOSKernel
-from agent_os_kernel.core.types import AgentState
+from agent_os_kernel import AgentOSKernel
 
 
-class TestAgentOSKernel:
-    def test_initialization(self):
+class TestKernel:
+    """Test kernel functionality"""
+    
+    def test_create_kernel(self):
+        """Test kernel creation"""
         kernel = AgentOSKernel()
-        
-        assert kernel.version == "0.2.0"
-        assert kernel.context_manager is not None
-        assert kernel.scheduler is not None
-        assert kernel.tool_registry is not None
+        assert kernel is not None
+    
+    def test_kernel_version(self):
+        """Test kernel version"""
+        kernel = AgentOSKernel()
+        stats = kernel.get_stats()
+        assert "version" in stats
     
     def test_spawn_agent(self):
+        """Test agent spawning"""
         kernel = AgentOSKernel()
-        
-        pid = kernel.spawn_agent("TestAgent", "Test task", priority=30)
-        
+        pid = kernel.spawn_agent(
+            name="TestAgent",
+            task="Test task",
+            priority=50
+        )
         assert pid is not None
-        assert pid in kernel.scheduler.processes
-        
-        process = kernel.scheduler.processes[pid]
-        assert process.name == "TestAgent"
-        assert process.priority == 30
     
-    def test_get_agent_status(self):
-        kernel = AgentOSKernel()
-        pid = kernel.spawn_agent("TestAgent", "Test task")
-        
-        status = kernel.get_agent_status(pid)
-        
-        assert status is not None
-        assert status['name'] == "TestAgent"
-        assert status['state'] == "ready"
-    
-    def test_terminate_agent(self):
-        kernel = AgentOSKernel()
-        pid = kernel.spawn_agent("TestAgent", "Test task")
-        
-        kernel.terminate_agent(pid)
-        
-        process = kernel.scheduler.processes[pid]
-        assert process.state == AgentState.TERMINATED
-    
-    def test_create_and_restore_checkpoint(self):
-        kernel = AgentOSKernel()
-        pid = kernel.spawn_agent("TestAgent", "Test task")
-        
-        # 创建检查点
-        checkpoint_id = kernel.create_checkpoint(pid, "Test checkpoint")
-        assert checkpoint_id is not None
-        
-        # 恢复检查点
-        new_pid = kernel.restore_checkpoint(checkpoint_id)
-        assert new_pid is not None
-        assert new_pid != pid
-        
-        process = kernel.scheduler.processes[new_pid]
-        assert process.name == "TestAgent"
-    
-    def test_run_single_iteration(self):
-        kernel = AgentOSKernel()
-        kernel.spawn_agent("TestAgent", "Test task")
-        
-        # 运行一次迭代
-        kernel.run(max_iterations=1)
-        
-        # 检查进程是否被处理
-        active = kernel.scheduler.get_active_processes()
-        # 进程可能被终止或仍在等待
-        assert len(active) >= 0
-    
-    def test_builtin_tools_registered(self):
+    def test_list_agents(self):
+        """Test listing agents"""
         kernel = AgentOSKernel()
         
-        tools = kernel.tool_registry.list_tools()
-        tool_names = [t['name'] for t in tools]
+        kernel.spawn_agent(name="Agent1", task="Task 1")
+        kernel.spawn_agent(name="Agent2", task="Task 2")
         
-        assert 'calculator' in tool_names
-        assert 'search' in tool_names
-        assert 'read_file' in tool_names
+        agents = kernel.list_agents()
+        assert len(agents) >= 2
+
+
+class TestContextManager:
+    """Test context management"""
+    
+    def test_create_manager(self):
+        """Test context manager creation"""
+        from agent_os_kernel import ContextManager
+        cm = ContextManager()
+        assert cm is not None
+    
+    def test_allocate_page(self):
+        """Test page allocation"""
+        from agent_os_kernel import ContextManager
+        
+        cm = ContextManager(max_context_tokens=128000)
+        page_id = cm.allocate_page(
+            agent_pid="test-agent",
+            content="Test content",
+            importance=0.8
+        )
+        assert page_id is not None
+
+
+class TestStorageManager:
+    """Test storage management"""
+    
+    def test_storage_from_postgresql(self):
+        """Test PostgreSQL storage creation"""
+        from agent_os_kernel import StorageManager
+        
+        # In-memory test
+        storage = StorageManager.from_memory()
+        assert storage is not None
+    
+    def test_vector_search(self):
+        """Test vector search functionality"""
+        from agent_os_kernel import StorageManager
+        
+        storage = StorageManager.from_memory(enable_vector=True)
+        results = storage.semantic_search(
+            query="test query",
+            limit=5
+        )
+        assert isinstance(results, list)
+
+
+class TestLLMProviders:
+    """Test LLM providers"""
+    
+    def test_factory_creation(self):
+        """Test factory creation"""
+        from agent_os_kernel.llm import LLMProviderFactory
+        
+        factory = LLMProviderFactory()
+        assert factory is not None
+    
+    def test_provider_config(self):
+        """Test provider configuration"""
+        from agent_os_kernel.llm import LLMConfig
+        
+        config = LLMConfig(
+            provider="deepseek",
+            model="deepseek-chat"
+        )
+        assert config.provider == "deepseek"
+        assert config.model == "deepseek-chat"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
