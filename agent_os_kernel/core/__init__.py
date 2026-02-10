@@ -95,3 +95,25 @@ __all__ += [
     'ToolInfo',
     'get_tool_market',
 ]
+
+# ========== Metrics Collector ==========
+from .metrics_collector import MetricsCollector, get_metrics_collector, timed
+
+# ========== Circuit Breaker ==========
+from .circuit_breaker import CircuitBreaker, CircuitState, CircuitConfig, get_circuit_breaker_manager
+
+# ========== Agent Registry ==========
+from .agent_registry import AgentRegistry, AgentMetadata, get_agent_registry
+
+__all__ += [
+    'MetricsCollector',
+    'get_metrics_collector',
+    'timed',
+    'CircuitBreaker',
+    'CircuitState',
+    'CircuitConfig',
+    'get_circuit_breaker_manager',
+    'AgentRegistry',
+    'AgentMetadata',
+    'get_agent_registry',
+]
