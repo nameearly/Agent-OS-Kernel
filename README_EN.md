@@ -478,27 +478,16 @@ Agent OS Kernel is deeply inspired by [AIOS](https://github.com/agiresearch/AIOS
 - [A-Mem (arXiv:2502.12110)](https://arxiv.org/abs/2502.12110) - Agentic Memory for LLM Agents
 - [LiteCUA (arXiv:2505.18829)](https://arxiv.org/abs/2505.18829) - Learning Agent Evaluation
 
-### 📚 Project Documentation
-
-> **Tip**: Add new documentation links here
-
----
-
-## 📊 Project Statistics
-
----
-
 ## 📊 Project Statistics
 
 | Metric | Value |
 |--------|-------|
-| **Python Files** | 87 |
-| **Core Modules** | 24+ |
+| **Python Files** | 115+ |
+| **Core Modules** | 32+ |
 | **LLM Providers** | 9 |
-| **Test Files** | 10 |
-| **Examples** | 18 |
-| **Documentation** | 6 |
-| **Agent Communication** | 5 |
+| **Test Files** | 14 |
+| **Examples** | 31+ |
+| **Documentation** | 12+ |
 
 ## 📄 License
 
