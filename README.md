@@ -509,7 +509,7 @@ black agent_os_kernel/ tests/
 
 ## 📄 许可证
 
-MIT License © 2026 Bit-Cook & XieClaw
+MIT License © 2026 OpenClaw
 
 ---
 
