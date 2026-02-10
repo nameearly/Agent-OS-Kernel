@@ -38,6 +38,9 @@ from .core.async_queue import AsyncQueue, Message, MessageStatus, QueueType as A
 from .core.batch_processor import BatchProcessor, Batch, AggregationType, SlidingWindowProcessor
 from .core.stream_handler import StreamHandler, StreamType, StreamChunk, StreamManager
 from .core.pipeline import Pipeline, PipelineItem, PipelineStage
+from .core.cache_system import CacheSystem, CacheLevel, EvictionPolicy
+from .core.lock_manager import LockManager, LockType, async_lock
+from .core.state_machine import StateMachine, EventType
 from .core.config_manager import ConfigManager
 from .core.workflow_engine import WorkflowEngine, Workflow, WorkflowNode
 from .core.event_bus import Event as CoreEvent
@@ -164,6 +167,12 @@ __all__ = [
     'Pipeline',
     'PipelineItem',
     'PipelineStage',
+    'CacheSystem',
+    'CacheLevel',
+    'LockManager',
+    'LockType',
+    'StateMachine',
+    'EventType',
     'CrewDefinition',
     
     # Advanced Core - Workflow
