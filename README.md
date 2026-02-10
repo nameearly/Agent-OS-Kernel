@@ -342,52 +342,6 @@ Agent OS Kernel 完整支持主流中国 AI 模型提供商：
 | **Kimi (Moonshot)** | kimi-k2 系列、moonshot-v1 系列 | `{"provider": "kimi", "model": "kimi-k2.5"}` |
 | **MiniMax** | abab6.5s-chat, abab6.5-chat | `{"provider": "minimax", "model": "abab6.5s-chat"}` |
 
-### 配置方式
-
-```yaml
-# config.yaml
-llms:
-  models:
-    - name: "deepseek-chat"
-      provider: "deepseek"
-      
-    - name: "kimi"
-      provider: "kimi"
-      # 可选: model: kimi-k2.5 或 moonshot-v1 系列
-      
-    - name: "abab6.5s-chat"
-      provider: "minimax"
-      
-    - name: "qwen-plus"
-      provider: "qwen"
-```
-
-```python
-from agent_os_kernel.llm import LLMProviderFactory, LLMConfig
-
-factory = LLMProviderFactory()
-
-# 使用 DeepSeek
-provider = factory.create(LLMConfig(
-    provider="deepseek",
-    model="deepseek-chat"
-))
-
-# 使用 Kimi
-provider = factory.create(LLMConfig(
-    provider="kimi",
-    model="kimi-k2.5"  # 或 moonshot-v1 系列
-))
-
-# 使用 Qwen
-provider = factory.create(LLMConfig(
-    provider="qwen",
-    model="qwen-plus"
-))
-```
-
----
-
 ## 🔧 常用 MCP 服务器
 
 完整支持 Model Context Protocol，连接 400+ MCP 服务器。
