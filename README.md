@@ -42,6 +42,16 @@ Agent 直接操作文件系统和终端，依赖"信任模型"而非"隔离模�
 
 ---
 
+## 📚 本项目文档
+
+- [架构设计](docs/architecture.md)
+- [API 参考](docs/api-reference.md)
+- [最佳实践](docs/best-practices.md)
+- [分布式部署](docs/distributed-deployment.md)
+- [Development Plans](development-docs/3DAY_PLAN.md)
+
+---
+
 ## 🚀 快速开始
 
 ### 安装
@@ -296,16 +306,6 @@ policy = SecurityPolicy(
     blocked_paths=["/etc", "/root"]
 )
 ```
-
----
-
-## 📚 本项目文档
-
-- [架构设计](docs/architecture.md)
-- [API 参考](docs/api-reference.md)
-- [最佳实践](docs/best-practices.md)
-- [分布式部署](docs/distributed-deployment.md)
-- [Development Plans](development-docs/3DAY_PLAN.md)
 
 ---
 

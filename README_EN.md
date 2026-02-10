@@ -42,6 +42,16 @@ Agents directly manipulate the file system and terminal, relying on a "trust mod
 
 ---
 
+## 📚 Project Documentation
+
+- [Architecture](docs/architecture.md)
+- [API Reference](docs/api-reference.md)
+- [Best Practices](docs/best-practices.md)
+- [Distributed Deployment](docs/distributed-deployment.md)
+- [Development Plans](development-docs/3DAY_PLAN.md)
+
+---
+
 ## 🚀 Quick Start
 
 ### Installation
@@ -296,16 +306,6 @@ policy = SecurityPolicy(
     blocked_paths=["/etc", "/root"]
 )
 ```
-
----
-
-## 📚 Project Documentation
-
-- [Architecture](docs/architecture.md)
-- [API Reference](docs/api-reference.md)
-- [Best Practices](docs/best-practices.md)
-- [Distributed Deployment](docs/distributed-deployment.md)
-- [Development Plans](development-docs/3DAY_PLAN.md)
 
 ---
 
