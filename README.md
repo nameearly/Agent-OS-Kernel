@@ -29,6 +29,19 @@ Agent 直接操作文件系统和终端，依赖"信任模型"而非"隔离模�
 
 ---
 
+## 🎯 核心洞察
+
+| 传统计算机 | Agent 世界 | 核心挑战 | Agent OS Kernel 解决方案 |
+|-----------|-----------|---------|------------------------|
+| **CPU** | **LLM** | 如何高效调度推理任务？ | 抢占式调度 + 资源配额管理 |
+| **RAM** | **Context Window** | 如何管理有限的上下文窗口？ | 虚拟内存式上下文管理 |
+| **Disk** | **Database** | 如何持久化状态？ | PostgreSQL 五重角色 |
+| **Process** | **Agent** | 如何管理生命周期？ | 真正的进程管理 |
+| **Device Driver** | **Tools** | 如何标准化工具调用？ | MCP + Agent-Native CLI |
+| **Security** | **Sandbox** | 如何保障安全？ | 沙箱 + 可观测性 + 审计 |
+
+---
+
 ## 🚀 快速开始
 
 ### 安装
@@ -79,19 +92,6 @@ provider = factory.create(LLMConfig(
     api_key="your-api-key"
 ))
 ```
-
----
-
-## 🎯 核心洞察
-
-| 传统计算机 | Agent 世界 | 核心挑战 | Agent OS Kernel 解决方案 |
-|-----------|-----------|---------|------------------------|
-| **CPU** | **LLM** | 如何高效调度推理任务？ | 抢占式调度 + 资源配额管理 |
-| **RAM** | **Context Window** | 如何管理有限的上下文窗口？ | 虚拟内存式上下文管理 |
-| **Disk** | **Database** | 如何持久化状态？ | PostgreSQL 五重角色 |
-| **Process** | **Agent** | 如何管理生命周期？ | 真正的进程管理 |
-| **Device Driver** | **Tools** | 如何标准化工具调用？ | MCP + Agent-Native CLI |
-| **Security** | **Sandbox** | 如何保障安全？ | 沙箱 + 可观测性 + 审计 |
 
 ---
 
