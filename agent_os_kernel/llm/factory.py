@@ -81,9 +81,9 @@ class LLMProviderFactory:
         "kimi": ProviderInfo(
             type=ProviderType.KIMI,
             name="Kimi (Moonshot AI)",
-            description="Long context models (8K/32K/128K/200K)",
+            description="kimi-k2.5 (强化推理), Long context (8K-200K)",
             requires_api_key=True,
-            default_model="moonshot-v1-32k"
+            default_model="kimi-k2.5"
         ),
         "minimax": ProviderInfo(
             type=ProviderType.MINIMAX,
