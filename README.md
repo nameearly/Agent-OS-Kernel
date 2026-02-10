@@ -6,7 +6,7 @@
 
 > 深受 [冯若航《AI Agent 的操作系统时刻》](https://vonng.com/db/agent-os/) 启发，试图填补 Agent 生态中"缺失的内核"
 
-**支持中国模型**: DeepSeek | Kimi | MiniMax | Qwen
+**支持中国模型**: DeepSeek | Qwen | Kimi | MiniMax
 
 [![CI](https://github.com/bit-cook/Agent-OS-Kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/bit-cook/Agent-OS-Kernel/actions)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
@@ -336,9 +336,9 @@ Agent OS Kernel 完整支持主流中国 AI 模型提供商：
 | Provider | 模型 | 特点 | 配置示例 |
 |----------|------|------|----------|
 | **DeepSeek** | deepseek-chat, deepseek-reasoner | 性价比高、推理能力强 | `{"provider": "deepseek", "model": "deepseek-chat"}` |
-| **Kimi (Moonshot)** | kimi-vl, kimi-k1 | 超长上下文、多模态 | `{"provider": "kimi", "model": "kimi-vl"}` |
-| **MiniMax** | abab6.5s-chat, abab6.5-chat | 快速响应、低延迟 | `{"provider": "minimax", "model": "abab6.5s-chat"}` |
 | **Qwen (阿里)** | qwen-turbo, qwen-plus, qwen-max, qwen-long | 生态完善、API 稳定 | `{"provider": "qwen", "model": "qwen-turbo"}` |
+| **Kimi (Moonshot)** | kimi-vl, kimi-k2.5 | 超长上下文、多模态 | `{"provider": "kimi", "model": "kimi-vl"}` |
+| **MiniMax** | abab6.5s-chat, abab6.5-chat | 快速响应、低延迟 | `{"provider": "minimax", "model": "abab6.5s-chat"}` |
 
 ### 配置方式
 
@@ -349,7 +349,7 @@ llms:
     - name: "deepseek-chat"
       provider: "deepseek"
       
-    - name: "kimi-vl"
+    - name: "kimi-k2.5"
       provider: "kimi"
       
     - name: "abab6.5s-chat"
