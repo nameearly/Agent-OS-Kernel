@@ -1,218 +1,250 @@
 # -*- coding: utf-8 -*-
-"""性能指标收集器"""
+"""
+Metrics - 性能指标
 
+支持：
+1. 收集性能指标
+2. 计算统计信息
+3. 导出指标
+4. 设置告警阈值
+"""
+
+import asyncio
+import logging
 import time
-import threading
-from collections import deque
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from enum import Enum
+import json
+import statistics
 
-from .types import PerformanceMetrics
+logger = logging.getLogger(__name__)
+
+
+class MetricType(Enum):
+    """指标类型"""
+    COUNTER = "counter"           # 计数器
+    GAUGE = "gauge"             # 仪表盘
+    HISTOGRAM = "histogram"     # 直方图
+    SUMMARY = "summary"          # 汇总
 
 
 @dataclass
+class Metric:
+    """指标"""
+    name: str
+    metric_type: MetricType
+    description: str = ""
+    labels: Dict = field(default_factory=dict)
+    value: float = 0
+    count: int = 0
+    sum_: float = 0
+    buckets: Dict[float, int] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=datetime.now)
+    
+    def __post_init__(self):
+        if not self.buckets and self.metric_type == MetricType.HISTOGRAM:
+            self.buckets = {0.1: 0, 0.5: 0, 1.0: 0, 5.0: 0, 10.0: 0}
+
+
 class MetricsCollector:
-    """性能指标收集器"""
-    window_size: int = 60  # 窗口大小（秒）
-    max_history: int = 3600  # 最大历史记录数
+    """
+    指标收集器
     
-    _cpu_history: deque = field(default_factory=deque)
-    _memory_history: deque = field(default_factory=deque)
-    _context_hit_history: deque = field(default_factory=deque)
-    _swap_history: deque = field(default_factory=deque)
-    _timestamps: deque = field(default_factory=deque)
-    _lock: threading.Lock = field(default_factory=threading.Lock)
+    功能：
+    1. 创建/更新指标
+    2. 记录数值
+    3. 计算统计
+    4. 导出指标
+    """
     
-    def record_cpu(self, usage: float):
-        """记录 CPU 使用率"""
-        with self._lock:
-            self._cpu_history.append(usage)
-            self._timestamps.append(time.time())
-            self._cleanup()
-    
-    def record_memory(self, usage: float):
-        """记录内存使用率"""
-        with self._lock:
-            self._memory_history.append(usage)
-            self._cleanup()
-    
-    def record_context_hit_rate(self, rate: float):
-        """记录上下文命中率"""
-        with self._lock:
-            self._context_hit_history.append(rate)
-            self._cleanup()
-    
-    def record_swap(self):
-        """记录一次 swap 操作"""
-        with self._lock:
-            if self._swap_history:
-                last = self._swap_history[-1]
-                self._swap_history.append(last + 1)
-            else:
-                self._swap_history.append(1)
-            self._cleanup()
-    
-    def _cleanup(self):
-        """清理过期数据"""
-        now = time.time()
-        cutoff = now - self.window_size
+    def __init__(self, max_history: int = 1000):
+        self._metrics: Dict[str, Metric] = {}
+        self._history: List[Dict] = []
+        self._max_history = max_history
+        self._lock = asyncio.Lock()
         
-        while self._timestamps and self._timestamps[0] < cutoff:
-            self._cpu_history.popleft()
-            self._memory_history.popleft()
-            self._timestamps.popleft()
+        # 注册默认指标
+        self._register_defaults()
+    
+    def _register_defaults(self):
+        """注册默认指标"""
+        defaults = [
+            ("agent_count", MetricType.GAUGE, "Number of active agents"),
+            ("agent_started_total", MetricType.COUNTER, "Total agents started"),
+            ("agent_completed_total", MetricType.COUNTER, "Total agents completed"),
+            ("agent_failed_total", MetricType.COUNTER, "Total agents failed"),
+            ("context_pages_total", MetricType.COUNTER, "Total context pages allocated"),
+            ("context_switches_total", MetricType.COUNTER, "Total context switches"),
+            ("scheduler_ticks_total", MetricType.COUNTER, "Total scheduler ticks"),
+            ("api_calls_total", MetricType.COUNTER, "Total API calls"),
+            ("api_latency_seconds", MetricType.HISTOGRAM, "API call latency"),
+            ("tokens_used_total", MetricType.COUNTER, "Total tokens used"),
+            ("memory_usage_bytes", MetricType.GAUGE, "Memory usage"),
+            ("cpu_usage_percent", MetricType.GAUGE, "CPU usage"),
+        ]
         
-        # 限制历史长度
-        while len(self._cpu_history) > self.max_history:
-            self._cpu_history.popleft()
-            self._memory_history.popleft()
-            self._context_hit_history.popleft()
-            self._swap_history.popleft()
-    
-    def get_average_cpu(self, seconds: int = 60) -> float:
-        """获取平均 CPU 使用率"""
-        with self._lock:
-            if not self._cpu_history:
-                return 0.0
-            cutoff = time.time() - seconds
-            values = [v for t, v in zip(self._timestamps, self._cpu_history) if t >= cutoff]
-            return sum(values) / len(values) if values else 0.0
-    
-    def get_average_memory(self, seconds: int = 60) -> float:
-        """获取平均内存使用率"""
-        with self._lock:
-            if not self._memory_history:
-                return 0.0
-            cutoff = time.time() - seconds
-            values = [v for t, v in zip(self._timestamps, self._memory_history) if t >= cutoff]
-            return sum(values) / len(values) if values else 0.0
-    
-    def get_context_hit_rate(self, seconds: int = 60) -> float:
-        """获取上下文命中率"""
-        with self._lock:
-            if not self._context_hit_history:
-                return 0.0
-            cutoff = time.time() - seconds
-            values = [v for t, v in zip(self._timestamps, self._context_hit_history) if t >= cutoff]
-            return sum(values) / len(values) if values else 0.0
-    
-    def get_total_swaps(self) -> int:
-        """获取总 swap 次数"""
-        with self._lock:
-            return self._swap_history[-1] if self._swap_history else 0
-    
-    def get_metrics(self, active_agents: int = 0, queued_agents: int = 0) -> PerformanceMetrics:
-        """获取当前性能指标"""
-        with self._lock:
-            return PerformanceMetrics(
-                timestamp=datetime.utcnow(),
-                cpu_usage=self.get_average_cpu(),
-                memory_usage=self.get_average_memory(),
-                context_hit_rate=self.get_context_hit_rate(),
-                swap_count=self.get_total_swaps(),
-                active_agents=active_agents,
-                queued_agents=queued_agents
+        for name, mtype, desc in defaults:
+            self._metrics[name] = Metric(
+                name=name,
+                metric_type=mtype,
+                description=desc
             )
     
-    def get_history(self, seconds: int = 60) -> Dict[str, List]:
-        """获取历史数据"""
-        with self._lock:
-            cutoff = time.time() - seconds
-            indices = [i for i, t in enumerate(self._timestamps) if t >= cutoff]
-            return {
-                "timestamps": [self._timestamps[i] for i in indices],
-                "cpu": [self._cpu_history[i] for i in indices],
-                "memory": [self._memory_history[i] for i in indices],
-                "context_hit_rate": [self._context_hit_history[i] for i in indices]
+    def counter(self, name: str, value: float = 1, labels: Dict = None):
+        """增加计数器"""
+        return self._update_metric(name, value, "counter", labels)
+    
+    def gauge(self, name: str, value: float, labels: Dict = None):
+        """设置仪表盘"""
+        return self._update_metric(name, value, "gauge", labels)
+    
+    def histogram(self, name: str, value: float, labels: Dict = None):
+        """记录直方图"""
+        metric = self._update_metric(name, value, "histogram", labels)
+        
+        # 更新 bucket
+        for bucket in metric.buckets:
+            if value <= bucket:
+                metric.buckets[bucket] += 1
+        
+        return metric
+    
+    def _update_metric(
+        self,
+        name: str,
+        value: float,
+        mtype: str,
+        labels: Dict = None
+    ) -> Metric:
+        """更新指标"""
+        key = self._make_key(name, labels)
+        
+        if key not in self._metrics:
+            mtype_enum = MetricType(mtype)
+            self._metrics[key] = Metric(
+                name=name,
+                metric_type=mtype_enum,
+                labels=labels or {},
+                value=value
+            )
+        
+        metric = self._metrics[key]
+        
+        if mtype == "counter":
+            metric.value += value
+            metric.count += 1
+            metric.sum_ += value
+        elif mtype == "gauge":
+            metric.value = value
+        elif mtype == "histogram":
+            metric.value = value
+            metric.count += 1
+            metric.sum_ += value
+        
+        return metric
+    
+    def _make_key(self, name: str, labels: Dict = None) -> str:
+        """生成指标 key"""
+        if not labels:
+            return name
+        label_str = ".".join(f"{k}={v}" for k, v in sorted(labels.items()))
+        return f"{name}[{label_str}]"
+    
+    def get(self, name: str, labels: Dict = None) -> Optional[Metric]:
+        """获取指标"""
+        key = self._make_key(name, labels)
+        return self._metrics.get(key)
+    
+    def get_all(self) -> Dict[str, Metric]:
+        """获取所有指标"""
+        return copy.deepcopy(self._metrics)
+    
+    def get_stats(self) -> Dict:
+        """获取统计信息"""
+        return {
+            "total_metrics": len(self._metrics),
+            "metrics": {
+                name: {
+                    "type": m.metric_type.value,
+                    "value": m.value,
+                    "count": m.count,
+                    "labels": m.labels
+                }
+                for name, m in self._metrics.items()
             }
-
-
-class RateLimiter:
-    """速率限制器"""
+        }
     
-    def __init__(self, max_requests: int = 100, window_seconds: int = 60):
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-        self._requests: deque = deque()
-        self._lock = threading.Lock()
+    def reset(self, name: str = None, labels: Dict = None):
+        """重置指标"""
+        if name:
+            key = self._make_key(name, labels)
+            if key in self._metrics:
+                del self._metrics[key]
+        else:
+            self._metrics.clear()
+            self._register_defaults()
     
-    def allow(self) -> bool:
-        """是否允许请求"""
-        with self._lock:
-            now = time.time()
-            
-            # 清理过期请求
-            while self._requests and self._requests[0] < now - self.window_seconds:
-                self._requests.popleft()
-            
-            # 检查是否超出限制
-            if len(self._requests) >= self.max_requests:
-                return False
-            
-            # 记录请求
-            self._requests.append(now)
-            return True
-    
-    def remaining(self) -> int:
-        """剩余请求数"""
-        with self._lock:
-            now = time.time()
-            valid = sum(1 for t in self._requests if t >= now - self.window_seconds)
-            return max(0, self.max_requests - valid)
-    
-    def reset(self):
-        """重置速率限制器"""
-        with self._lock:
-            self._requests.clear()
-
-
-class CircuitBreaker:
-    """熔断器"""
-    
-    def __init__(self, failure_threshold: int = 5, recovery_time: int = 60):
-        self.failure_threshold = failure_threshold
-        self.recovery_time = recovery_time
-        self._failure_count = 0
-        self._last_failure_time: Optional[float] = None
-        self._lock = threading.Lock()
-    
-    def allow(self) -> bool:
-        """是否允许请求"""
-        with self._lock:
-            # 检查是否在熔断状态
-            if self._is_circuit_open():
-                return False
-            
-            return True
-    
-    def record_success(self):
-        """记录成功"""
-        with self._lock:
-            self._failure_count = 0
-    
-    def record_failure(self):
-        """记录失败"""
-        with self._lock:
-            self._failure_count += 1
-            self._last_failure_time = time.time()
-    
-    def _is_circuit_open(self) -> bool:
-        """检查熔断器是否开启"""
-        if self._failure_count < self.failure_threshold:
-            return False
+    def export_prometheus(self) -> str:
+        """导出 Prometheus 格式"""
+        lines = ["# Agent OS Kernel Metrics"]
         
-        if self._last_failure_time is None:
-            return False
+        for metric in self._metrics.values():
+            labels = ""
+            if metric.labels:
+                label_str = ",".join(
+                    f'{k}="{v}"'
+                    for k, v in metric.labels.items()
+                )
+                labels = f"{{{label_str}}}"
+            
+            if metric.metric_type == MetricType.COUNTER:
+                lines.append(f"# HELP {metric.name} {metric.description}")
+                lines.append(f"# TYPE {metric.name} counter")
+                lines.append(f"{metric.name}{labels} {metric.value}")
+            
+            elif metric.metric_type == MetricType.GAUGE:
+                lines.append(f"# HELP {metric.name} {metric.description}")
+                lines.append(f"# TYPE {metric.name} gauge")
+                lines.append(f"{metric.name}{labels} {metric.value}")
+            
+            elif metric.metric_type == MetricType.HISTOGRAM:
+                lines.append(f"# HELP {metric.name} {metric.description}")
+                lines.append(f"# TYPE {metric.name} histogram")
+                for bucket, count in metric.buckets.items():
+                    lines.append(
+                        f"{metric.name}_bucket{labels}"
+                        f"{{le=\"{bucket}\"}} {count}"
+                    )
+                lines.append(f"{metric.name}_bucket{labels}{{le=\"+Inf\"}} {metric.count}")
+                lines.append(f"{metric.name}_sum{labels} {metric.sum_}")
+                lines.append(f"{metric.name}_count{labels} {metric.count}")
         
-        # 检查是否超过恢复时间
-        return time.time() - self._last_failure_time < self.recovery_time
+        return "\n".join(lines)
     
-    def get_state(self) -> str:
-        """获取熔断器状态"""
-        with self._lock:
-            if self._is_circuit_open():
-                return "OPEN"
-            elif self._failure_count > 0:
-                return "HALF_OPEN"
-            return "CLOSED"
+    def export_json(self) -> str:
+        """导出 JSON 格式"""
+        return json.dumps(self.get_stats(), indent=2, default=str)
+
+
+# Timer 装饰器
+def timer(metrics: MetricsCollector, metric_name: str):
+    """计时装饰器"""
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            start = time.time()
+            try:
+                result = await func(*args, **kwargs)
+                return result
+            finally:
+                elapsed = time.time() - start
+                metrics.histogram(metric_name, elapsed)
+        return wrapper
+    return decorator
+
+
+# 便捷函数
+def create_metrics_collector(max_history: int = 1000) -> MetricsCollector:
+    """创建指标收集器"""
+    return MetricsCollector(max_history)

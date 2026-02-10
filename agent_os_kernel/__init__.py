@@ -136,3 +136,49 @@ __all__ = [
     "AgentOSKernel",
     "KernelStats",
 ]
+
+# Event System
+from .core.events import (
+    EventBus,
+    Event,
+    EventType,
+    create_event_bus
+)
+
+# State Management
+from .core.state import (
+    StateManager,
+    AgentState,
+    AgentStateRecord,
+    create_state_manager
+)
+
+# Metrics
+from .core.metrics import (
+    MetricsCollector,
+    Metric,
+    MetricType,
+    create_metrics_collector,
+    timer
+)
+
+__all__ = [
+    # Event System
+    'EventBus',
+    'Event',
+    'EventType',
+    'create_event_bus',
+    
+    # State Management
+    'StateManager',
+    'AgentState',
+    'AgentStateRecord',
+    'create_state_manager',
+    
+    # Metrics
+    'MetricsCollector',
+    'Metric',
+    'MetricType',
+    'create_metrics_collector',
+    'timer',
+]
