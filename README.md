@@ -335,12 +335,12 @@ policy = SecurityPolicy(
 
 Agent OS Kernel 完整支持主流中国 AI 模型提供商：
 
-| Provider | 模型 | 特点 | 配置示例 |
-|----------|------|------|----------|
-| **DeepSeek** | deepseek-chat, deepseek-reasoner | 性价比高、推理能力强 | `{"provider": "deepseek", "model": "deepseek-chat"}` |
-| **Qwen (阿里)** | qwen-turbo, qwen-plus, qwen-max, qwen-long | 生态完善、API 稳定 | `{"provider": "qwen", "model": "qwen-turbo"}` |
-| **Kimi (Moonshot)** | kimi-k2 系列、moonshot-v1 系列 | 强化推理、超长上下文 (8K-200K) | `{"provider": "kimi", "model": "kimi-k2.5"}` |
-| **MiniMax** | abab6.5s-chat, abab6.5-chat | 快速响应、低延迟 | `{"provider": "minimax", "model": "abab6.5s-chat"}` |
+| Provider | 模型 | 配置示例 |
+|----------|------|----------|
+| **DeepSeek** | deepseek-chat, deepseek-reasoner | `{"provider": "deepseek", "model": "deepseek-chat"}` |
+| **Qwen (阿里)** | qwen-turbo, qwen-plus, qwen-max, qwen-long | `{"provider": "qwen", "model": "qwen-turbo"}` |
+| **Kimi (Moonshot)** | kimi-k2 系列、moonshot-v1 系列 | `{"provider": "kimi", "model": "kimi-k2.5"}` |
+| **MiniMax** | abab6.5s-chat, abab6.5-chat | `{"provider": "minimax", "model": "abab6.5s-chat"}` |
 
 ### 配置方式
 
