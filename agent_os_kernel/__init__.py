@@ -34,6 +34,8 @@ from .core.cost_tracker import CostTracker, CostLimit
 from .core.observability import Observability, Event as ObsEvent
 from .core.task_manager import TaskManager, TaskStatus
 from .core.task_queue import TaskQueue, TaskPriority, TaskStatus as QueueTaskStatus
+from .core.async_queue import AsyncQueue, Message, MessageStatus, QueueType as AsyncQueueType
+from .core.batch_processor import BatchProcessor, Batch, AggregationType, SlidingWindowProcessor
 from .core.config_manager import ConfigManager
 from .core.workflow_engine import WorkflowEngine, Workflow, WorkflowNode
 from .core.event_bus import Event as CoreEvent
@@ -149,6 +151,12 @@ __all__ = [
     'TaskQueue',
     'TaskPriority',
     'ConfigManager',
+    'AsyncQueue',
+    'Message',
+    'MessageStatus',
+    'BatchProcessor',
+    'AggregationType',
+    'SlidingWindowProcessor',
     'CrewDefinition',
     
     # Advanced Core - Workflow
