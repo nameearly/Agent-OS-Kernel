@@ -29,82 +29,75 @@ class TestStorageManager:
     
     def test_save_and_retrieve(self):
         """测试保存和检索"""
-        manager = StorageManager()
+        manager = StorageManager(backend=StorageBackend.MEMORY)
         
-        # 保存数据
-        manager.save("key1", {"data": "value1"})
+        manager.save("key1", {"value": "test1"})
+        manager.save("key2", {"value": "test2"})
         
-        # 检索
-        result = manager.retrieve("key1")
-        assert result == {"data": "value1"}
-    
-    def test_retrieve_nonexistent(self):
-        """测试检索不存在的键"""
-        manager = StorageManager()
-        
-        result = manager.retrieve("nonexistent")
-        assert result is None
+        assert manager.retrieve("key1") == {"value": "test1"}
+        assert manager.retrieve("key2") == {"value": "test2"}
     
     def test_delete(self):
         """测试删除"""
-        manager = StorageManager()
+        manager = StorageManager(backend=StorageBackend.MEMORY)
         
-        manager.save("key1", {"data": "value1"})
-        assert manager.retrieve("key1") is not None
+        manager.save("key1", {"value": "test"})
+        assert manager.retrieve("key1") == {"value": "test"}
         
         manager.delete("key1")
         assert manager.retrieve("key1") is None
     
-    def test_list_keys(self):
-        """测试列出所有键"""
-        manager = StorageManager()
+    def test_exists(self):
+        """测试存在性检查"""
+        manager = StorageManager(backend=StorageBackend.MEMORY)
         
-        manager.save("key1", {"data": "value1"})
-        manager.save("key2", {"data": "value2"})
-        manager.save("key3", {"data": "value3"})
+        assert manager.exists("nonexistent") is False
+        
+        manager.save("test", {"value": "test"})
+        assert manager.exists("test") is True
+    
+    def test_list_keys(self):
+        """测试列出键"""
+        manager = StorageManager(backend=StorageBackend.MEMORY)
+        
+        manager.save("key1", {"value": "1"})
+        manager.save("key2", {"value": "2"})
+        manager.save("key3", {"value": "3"})
         
         keys = manager.list_keys()
-        
         assert len(keys) == 3
         assert "key1" in keys
         assert "key2" in keys
         assert "key3" in keys
     
-    def test_exists(self):
-        """测试键是否存在"""
-        manager = StorageManager()
+    def test_batch_operations(self):
+        """测试批量操作"""
+        manager = StorageManager(backend=StorageBackend.MEMORY)
         
-        manager.save("exists", {"data": "value"})
-        
-        assert manager.exists("exists") is True
-        assert manager.exists("not_exists") is False
-    
-    def test_clear(self):
-        """测试清空存储"""
-        manager = StorageManager()
-        
-        manager.save("key1", {"data": "value1"})
-        manager.save("key2", {"data": "value2"})
-        
-        manager.clear()
-        
-        assert len(manager.list_keys()) == 0
-    
-    def test_bulk_save(self):
-        """测试批量保存"""
-        manager = StorageManager()
-        
-        data = {
+        items = {
             "k1": {"v": 1},
             "k2": {"v": 2},
-            "k3": {"v": 3}
+            "k3": {"v": 3},
         }
         
-        manager.bulk_save(data)
+        manager.batch_save(items)
         
         assert manager.retrieve("k1") == {"v": 1}
         assert manager.retrieve("k2") == {"v": 2}
         assert manager.retrieve("k3") == {"v": 3}
+    
+    def test_clear(self):
+        """测试清空"""
+        manager = StorageManager(backend=StorageBackend.MEMORY)
+        
+        manager.save("key1", {"value": "test"})
+        manager.save("key2", {"value": "test"})
+        
+        assert len(manager.list_keys()) == 2
+        
+        manager.clear()
+        
+        assert len(manager.list_keys()) == 0
 
 
 class TestStorageBackend:
@@ -121,5 +114,3 @@ class TestStorageBackend:
         assert StorageBackend.MEMORY.value == "memory"
         assert StorageBackend.FILE.value == "file"
         assert StorageBackend.POSTGRESQL.value == "postgresql"
-EXAMPLESEOF
-echo "✅ 存储测试创建完成"

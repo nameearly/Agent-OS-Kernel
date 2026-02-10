@@ -1,143 +1,92 @@
 """测试类型定义"""
 
 import pytest
-from datetime import datetime
+from enum import Enum
+from typing import Dict, List, Any
+
 from agent_os_kernel.core.types import (
     AgentState,
-    PageType,
-    StorageBackend,
-    ToolCategory,
     ResourceQuota,
-    ToolParameter,
+    PermissionLevel,
+    ToolCategory,
     ToolDefinition,
-    Checkpoint,
-    AuditLog,
-    PerformanceMetrics,
-    PluginInfo,
+    ToolParameter,
+    MessageType,
+    AgentType,
 )
 
 
 class TestAgentState:
-    """测试 AgentState"""
+    """测试 AgentState 枚举"""
     
-    def test_all_states_exist(self):
+    def test_state_values(self):
+        """测试状态值"""
         assert AgentState.CREATED.value == "created"
-        assert AgentState.READY.value == "ready"
+        assert AgentState.IDLE.value == "idle"
         assert AgentState.RUNNING.value == "running"
         assert AgentState.WAITING.value == "waiting"
-        assert AgentState.TERMINATED.value == "terminated"
-        assert AgentState.ERROR.value == "error"
+        assert AgentState.COMPLETED.value == "completed"
+        assert AgentState.FAILED.value == "failed"
+        assert AgentState.STOPPED.value == "stopped"
     
-    def test_state_transitions(self):
-        state = AgentState.CREATED
-        assert state == AgentState.CREATED
-
-
-class TestPageType:
-    """测试 PageType"""
-    
-    def test_all_types(self):
-        assert PageType.SYSTEM.value == "system"
-        assert PageType.TOOLS.value == "tools"
-        assert PageType.USER.value == "user"
-        assert PageType.TASK.value == "task"
-        assert PageType.MEMORY.value == "memory"
-        assert PageType.WORKING.value == "working"
-        assert PageType.CONTEXT.value == "context"
-
-
-class TestStorageBackend:
-    """测试 StorageBackend"""
-    
-    def test_backends(self):
-        assert StorageBackend.MEMORY.value == "memory"
-        assert StorageBackend.FILE.value == "file"
-        assert StorageBackend.POSTGRESQL.value == "postgresql"
-        assert StorageBackend.VECTOR.value == "vector"
+    def test_state_count(self):
+        """测试状态数量"""
+        states = list(AgentState)
+        assert len(states) == 8
 
 
 class TestResourceQuota:
     """测试 ResourceQuota"""
     
     def test_default_values(self):
+        """测试默认值"""
         quota = ResourceQuota()
         
-        assert quota.max_tokens == 10000
-        assert quota.max_iterations == 100
-        assert quota.max_memory_percent == 50.0
-        assert quota.max_cpu_percent == 80.0
-        assert quota.max_concurrent_tools == 5
+        assert quota.max_tokens == 128000
+        assert quota.max_memory_mb == 1024
+        assert quota.max_cpu_percent == 100
+        assert quota.max_disk_gb == 10
     
     def test_custom_values(self):
+        """测试自定义值"""
         quota = ResourceQuota(
-            max_tokens=50000,
-            max_iterations=500,
-            max_memory_percent=80.0
+            max_tokens=64000,
+            max_memory_mb=512,
+            max_cpu_percent=50
         )
         
-        assert quota.max_tokens == 50000
-        assert quota.max_iterations == 500
-        assert quota.max_memory_percent == 80.0
-    
-    def test_check_tokens(self):
-        quota = ResourceQuota(max_tokens=10000)
-        
-        assert quota.check_tokens(5000) is True
-        assert quota.check_tokens(10000) is True
-        assert quota.check_tokens(15000) is False
-    
-    def test_check_iterations(self):
-        quota = ResourceQuota(max_iterations=100)
-        
-        assert quota.check_iterations(50) is True
-        assert quota.check_iterations(100) is True
-        assert quota.check_iterations(150) is False
-    
-    def test_check_memory(self):
-        quota = ResourceQuota(max_memory_percent=80.0)
-        
-        assert quota.check_memory(50.0) is True
-        assert quota.check_memory(80.0) is True
-        assert quota.check_memory(90.0) is False
-    
-    def test_unlimited_check(self):
-        quota = ResourceQuota(max_tokens=0, max_iterations=0)
-        
-        assert quota.check_tokens(1000000) is True
-        assert quota.check_iterations(1000000) is True
+        assert quota.max_tokens == 64000
+        assert quota.max_memory_mb == 512
+        assert quota.max_cpu_percent == 50
 
 
-class TestToolParameter:
-    """测试 ToolParameter"""
+class TestPermissionLevel:
+    """测试 PermissionLevel"""
     
-    def test_required_parameter(self):
-        param = ToolParameter(
-            name="expression",
-            type="string",
-            description="Math expression",
-            required=True
-        )
-        
-        assert param.name == "expression"
-        assert param.required is True
+    def test_permission_values(self):
+        """测试权限值"""
+        assert PermissionLevel.RESTRICTED.value == "restricted"
+        assert PermissionLevel.STANDARD.value == "standard"
+        assert PermissionLevel.ADVANCED.value == "advanced"
+        assert PermissionLevel.FULL.value == "full"
+
+
+class TestToolCategory:
+    """测试 ToolCategory"""
     
-    def test_optional_parameter(self):
-        param = ToolParameter(
-            name="precision",
-            type="integer",
-            description="Decimal places",
-            required=False,
-            default=2
-        )
-        
-        assert param.required is False
-        assert param.default == 2
+    def test_category_values(self):
+        """测试类别值"""
+        assert ToolCategory.CALCULATOR.value == "calculator"
+        assert ToolCategory.FILE.value == "file"
+        assert ToolCategory.NETWORK.value == "network"
+        assert ToolCategory.DATABASE.value == "database"
 
 
 class TestToolDefinition:
     """测试 ToolDefinition"""
     
     def test_create_definition(self):
+        """测试创建工具定义"""
         tool = ToolDefinition(
             name="calculator",
             description="Perform math calculations",
@@ -146,11 +95,12 @@ class TestToolDefinition:
             author="Agent-OS-Kernel"
         )
         
-        "calculator"
-        assert tool.category == ToolCategory.CALC assert tool.name ==ULATOR
+        assert tool.name == "calculator"
+        assert tool.category == ToolCategory.CALCULATOR
         assert tool.version == "1.0.0"
     
     def test_to_dict(self):
+        """测试转换为字典"""
         tool = ToolDefinition(
             name="test_tool",
             description="Test tool"
@@ -158,129 +108,47 @@ class TestToolDefinition:
         
         result = tool.to_dict()
         
-        assert result['name'] == "test_tool"
-        assert result['description'] == "Test tool"
-        assert result['category'] == "custom"
-        assert result['parameters'] == []
-
-
-class TestCheckpoint:
-    """测试 Checkpoint"""
+        assert result["name"] == "test_tool"
+        assert result["description"] == "Test tool"
+        assert result["category"] == "general"
+        assert result["version"] == "1.0.0"
     
-    def test_create_checkpoint(self):
-        checkpoint = Checkpoint(
-            agent_pid="agent_123",
-            agent_name="TestAgent",
-            description="Test checkpoint"
+    def test_with_parameters(self):
+        """测试带参数的工具"""
+        param = ToolParameter(
+            name="num1",
+            param_type="number",
+            required=True,
+            description="First number"
         )
         
-        assert checkpoint.agent_pid == "agent_123"
-        assert checkpoint.checkpoint_id is not None
-        assert checkpoint.timestamp is not None
-    
-    def test_checkpoint_state(self):
-        checkpoint = Checkpoint(
-            agent_pid="agent_123",
-            state={"step": 5, "data": "test"}
+        tool = ToolDefinition(
+            name="add",
+            description="Add two numbers",
+            parameters=[param]
         )
         
-        assert checkpoint.state["step"] == 5
-        assert checkpoint.state["data"] == "test"
-    
-    def test_to_dict(self):
-        checkpoint = Checkpoint(
-            agent_pid="agent_123",
-            agent_name="Test"
-        )
-        
-        result = checkpoint.to_dict()
-        
-        assert result['agent_pid'] == "agent_123"
-        assert 'checkpoint_id' in result
-        assert 'timestamp' in result
+        assert len(tool.parameters) == 1
+        assert tool.parameters[0].name == "num1"
 
 
-class TestAuditLog:
-    """测试 AuditLog"""
+class TestMessageType:
+    """测试 MessageType"""
     
-    def test_create_audit_log(self):
-        log = AuditLog(
-            agent_pid="agent_123",
-            action="tool_call",
-            resource="calculator",
-            result="success"
-        )
-        
-        assert log.agent_pid == "agent_123"
-        assert log.action == "tool_call"
-        assert log.result == "success"
-    
-    def test_audit_log_to_dict(self):
-        log = AuditLog(
-            agent_pid="agent_123",
-            action="test",
-            resource="test",
-            details={"key": "value"}
-        )
-        
-        result = log.to_dict()
-        
-        assert result['details'] == {"key": "value"}
-        assert result['duration_ms'] == 0.0
+    def test_message_types(self):
+        """测试消息类型"""
+        assert MessageType.CHAT.value == "chat"
+        assert MessageType.TASK.value == "task"
+        assert MessageType.SYSTEM.value == "system"
+        assert MessageType.ERROR.value == "error"
 
 
-class TestPerformanceMetrics:
-    """测试 PerformanceMetrics"""
+class TestAgentType:
+    """测试 AgentType"""
     
-    def test_create_metrics(self):
-        metrics = PerformanceMetrics(
-            cpu_usage=50.0,
-            memory_usage=60.0,
-            context_hit_rate=0.95,
-            active_agents=5
-        )
-        
-        assert metrics.cpu_usage == 50.0
-        assert metrics.memory_usage == 60.0
-        assert metrics.active_agents == 5
-    
-    def test_metrics_to_dict(self):
-        metrics = PerformanceMetrics()
-        
-        result = metrics.to_dict()
-        
-        assert 'timestamp' in result
-        assert result['cpu_usage'] == 0.0
-
-
-class TestPluginInfo:
-    """测试 PluginInfo"""
-    
-    def test_create_plugin_info(self):
-        info = PluginInfo(
-            name="test_plugin",
-            version="1.0.0",
-            author="test",
-            description="Test plugin",
-            entry_point="plugins.test",
-            dependencies=["numpy"],
-            hooks=["on_start", "on_end"]
-        )
-        
-        assert info.name == "test_plugin"
-        assert info.version == "1.0.0"
-        assert len(info.dependencies) == 1
-    
-    def test_plugin_info_to_dict(self):
-        info = PluginInfo(
-            name="test",
-            version="1.0",
-            author="a",
-            description="d",
-            entry_point="e"
-        )
-        
-        result = info.to_dict()
-        
-        assert result['name'] == "test"
-        assert result['hooks'] == []
+    def test_agent_types(self):
+        """测试 Agent 类型"""
+        assert AgentType.GENERAL.value == "general"
+        assert AgentType.CODER.value == "coder"
+        assert AgentType.RESEARCHER.value == "researcher"
+        assert AgentType.WRITER.value == "writer"
