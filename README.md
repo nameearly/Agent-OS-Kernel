@@ -212,25 +212,20 @@ policy = SecurityPolicy(
 ```
 +----------------------------------------------------------------+
 |                        Agent Applications                        |
-|        (CodeAssistant | ResearchAgent | DataAnalyst...)         |
+| (CodeAssistant | ResearchAgent | DataAnalyst...)                 |
 +----------------------------------------------------------------+
                                 |
                                 v
 +----------------------------------------------------------------+
 |                      [ Agent OS Kernel ]                        |
 +----------------------------------------------------------------+
-|  +------------------+------------------+------------------+      |
-|  |     Context      |     Process     |       I/O        |      |
-|  |     Manager      |    Scheduler    |     Manager     |      |
-|  +------------------+------------------+------------------+      |
-|  +------------------+------------------+------------------+      |
-|  |     Storage Layer (PostgreSQL)                               | |
-|  |     Memory | Storage | Vector | Audit                          | |
-|  +------------------+------------------+------------------+      |
-|  +------------------+------------------+------------------+      |
-|  |     Learning Layer (Self-Learning)                           | |
-|  |     Trajectory | Optimizer | Experience                      | |
-|  +------------------+------------------+------------------+      |
+|  +------------------+------------------+------------------+     |
+|  |     Context      |     Process     |       I/O        |     |
+|  |     Manager      |    Scheduler    |     Manager     |     |
+|  +------------------+------------------+------------------+     |
+|  +------------------+------------------+------------------+     |
+|  | Storage Layer (PostgreSQL) | Learning Layer (Self-Learning)| |
+|  +------------------+------------------+------------------+     |
 +----------------------------------------------------------------+
                                 |
                                 v
@@ -347,15 +342,15 @@ Agent OS Kernel 深度参考 [AIOS](https://github.com/agiresearch/AIOS) (COLM 2
 +----------------------------------------------------------------+
 |  Kernel Layer                                                  |
 |  + LLM Core (Multi-Provider)                                    |
-|  + Context Manager (Virtual Memory)                            |
-|  + Memory Manager (Memory)                                     |
-|  + Storage Manager (Persistent)                                |
-|  + Tool Manager (Tools)                                        |
+|  + Context Manager (Virtual Memory)                             |
+|  + Memory Manager (Memory)                                      |
+|  + Storage Manager (Persistent)                                 |
+|  + Tool Manager (Tools)                                         |
 |  + Scheduler (Process)                                         |
 +----------------------------------------------------------------+
-|  SDK Layer (Cerebrum-Style)                                    |
-|  + Agent Builder (Builder)                                      |
-|  + Tool Registry (Registry)                                    |
+|  SDK Layer (Cerebrum-Style)                                     |
+|  + Agent Builder (Builder)                                       |
+|  + Tool Registry (Registry)                                      |
 |  + Plugin System (Plugins)                                      |
 +----------------------------------------------------------------+
 ```
