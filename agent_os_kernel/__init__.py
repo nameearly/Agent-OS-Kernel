@@ -36,6 +36,8 @@ from .core.task_manager import TaskManager, TaskStatus
 from .core.task_queue import TaskQueue, TaskPriority, TaskStatus as QueueTaskStatus
 from .core.async_queue import AsyncQueue, Message, MessageStatus, QueueType as AsyncQueueType
 from .core.batch_processor import BatchProcessor, Batch, AggregationType, SlidingWindowProcessor
+from .core.stream_handler import StreamHandler, StreamType, StreamChunk, StreamManager
+from .core.pipeline import Pipeline, PipelineItem, PipelineStage
 from .core.config_manager import ConfigManager
 from .core.workflow_engine import WorkflowEngine, Workflow, WorkflowNode
 from .core.event_bus import Event as CoreEvent
@@ -157,6 +159,11 @@ __all__ = [
     'BatchProcessor',
     'AggregationType',
     'SlidingWindowProcessor',
+    'StreamHandler',
+    'StreamType',
+    'Pipeline',
+    'PipelineItem',
+    'PipelineStage',
     'CrewDefinition',
     
     # Advanced Core - Workflow
