@@ -728,8 +728,8 @@ class StorageManager:
         """获取检查点"""
         if self._backend == StorageBackend.POSTGRESQL:
             if isinstance(self._data, PostgreSQLStorage):
-                # 查询 PostgreSQL
-                pass
+                # 从 PostgreSQL 获取
+                return self._data.retrieve(checkpoint_id)
         return self._checkpoint.retrieve(checkpoint_id)
     
     def list_checkpoints(self, agent_pid: str = None) -> List[dict]:

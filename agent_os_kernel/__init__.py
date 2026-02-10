@@ -23,7 +23,7 @@ from .core.types import AgentState, ResourceQuota
 # ========== Core Components ==========
 from .core.context_manager import ContextManager
 from .core.scheduler import AgentScheduler
-from .core.storage import StorageManager
+from .core.storage import StorageManager, StorageBackend, StorageStats
 from .core.security import SecurityPolicy
 
 # ========== Advanced Core ==========
@@ -74,6 +74,7 @@ from .tools.registry import ToolRegistry
 # ========== LLM ==========
 from .llm import LLMProviderFactory, LLMConfig
 from .llm.base_provider import BaseLLMProvider, ProviderMetrics
+from .llm.provider import LLMProvider, LLMConfig, ProviderType, Message, ChatMessage
 
 # ========== Communication ==========
 from .agents.communication import (
@@ -127,6 +128,11 @@ __all__ = [
     'PluginState',
     'create_plugin_manager',
     'BaseLLMProvider',
+    'LLMProvider',
+    'LLMConfig',
+    'ProviderType',
+    'Message',
+    'ChatMessage',
     'ProviderMetrics',
     
     # Tools

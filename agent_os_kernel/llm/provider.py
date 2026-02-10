@@ -13,19 +13,6 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-# 尝试导入可选依赖
-try:
-    import httpx
-    HAS_HTTPX = True
-except ImportError:
-    HAS_HTTPX = False
-
-try:
-    import structlog
-    HAS_STRUCTLOG = True
-except ImportError:
-    HAS_STRUCTLOG = False
-
 
 class ProviderType(Enum):
     """Provider 类型"""
@@ -135,22 +122,75 @@ class StreamEvent:
 class LLMProvider(ABC):
     """LLM Provider 抽象基类"""
     
+    def __init__(self, config: LLMConfig):
+        """初始化"""
+        self.config = config
+        self._initialized = False
+        self._metrics = {
+            "total_requests": 0,
+            "total_tokens": 0,
+            "failed_requests": 0
+        }
+        logger.info(f"LLMProvider initialized: {self.provider_name}")
+    
     @property
     @abstractmethod
     def provider_name(self) -> str:
         """Provider 名称"""
-        pass
+        raise NotImplementedError("Subclasses must implement provider_name")
     
     @property
     @abstractmethod
     def supported_models(self) -> List[str]:
         """支持的模型列表"""
-        pass
+        raise NotImplementedError("Subclasses must implement supported_models")
     
     @abstractmethod
     def get_config(self) -> LLMConfig:
         """获取配置"""
-        pass
+        return self.config
+    
+    async def initialize(self):
+        """初始化 Provider"""
+        self._initialized = True
+        logger.info(f"Provider initialized: {self.provider_name}")
+    
+    async def shutdown(self):
+        """关闭 Provider"""
+        self._initialized = False
+        logger.info(f"Provider shutdown: {self.provider_name}")
+    
+    async def embeddings(self, texts: List[str], model: str = "text-embedding-3-small") -> List[List[float]]:
+        """获取嵌入向量"""
+        import random
+        # 返回随机嵌入向量作为默认实现
+        dim = 1536
+        return [[random.uniform(-1, 1) for _ in range(dim)] for _ in texts]
+    
+    async def count_tokens(self, text: str, model: str = "gpt-4o") -> int:
+        """计算 token 数量"""
+        # 简化的 token 计算：约 4 个字符 = 1 个 token
+        return len(text) // 4
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        """获取使用指标"""
+        return self._metrics.copy()
+    
+    def reset_metrics(self):
+        """重置指标"""
+        self._metrics = {
+            "total_requests": 0,
+            "total_tokens": 0,
+            "failed_requests": 0
+        }
+    
+    def _update_metrics(self, tokens: int = 0, success: bool = True):
+        """更新指标"""
+        self._metrics["total_requests"] += 1
+        if success:
+            self._metrics["total_tokens"] += tokens
+        else:
+            self._metrics["failed_requests"] += 1
     
     @abstractmethod
     async def chat(
@@ -163,31 +203,7 @@ class LLMProvider(ABC):
         **kwargs
     ) -> Dict[str, Any]:
         """发送聊天请求"""
-        pass
-    
-    async def initialize(self):
-        """初始化 Provider"""
-        pass
-    
-    async def shutdown(self):
-        """关闭 Provider"""
-        pass
-    
-    async def embeddings(self, texts: List[str], model: str = "text-embedding-3-small") -> List[List[float]]:
-        """获取嵌入向量"""
-        raise NotImplementedError("Embeddings not supported")
-    
-    async def count_tokens(self, text: str, model: str = "gpt-4o") -> int:
-        """计算 token 数量"""
-        return len(text) // 4
-    
-    def get_metrics(self) -> Dict[str, Any]:
-        """获取使用指标"""
-        return {"total_requests": 0, "total_tokens": 0}
-    
-    def reset_metrics(self):
-        """重置指标"""
-        pass
+        raise NotImplementedError("Subclasses must implement chat method")
 
 
 # Provider 注册表
