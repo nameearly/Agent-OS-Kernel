@@ -230,3 +230,14 @@ __all__ += [
     'ToolCall',
     'ToolStatus',
 ]
+
+
+# ========== Optimized Scheduler (MemScheduler 理念) ==========
+from .optimized_scheduler import OptimizedScheduler, Priority, TaskStatus, ScheduledTask
+
+__all__ += [
+    'OptimizedScheduler',
+    'Priority',
+    'TaskStatus',
+    'ScheduledTask',
+]

@@ -43,6 +43,7 @@ from .core.lock_manager import LockManager, LockType, async_lock
 from .core.state_machine import StateMachine, EventType
 from .core.memory_feedback import MemoryFeedbackSystem, FeedbackType
 from .core.tool_memory import ToolMemory, ToolStatus
+from .core.optimized_scheduler import OptimizedScheduler, Priority, TaskStatus
 from .core.monitoring import Monitor, HealthStatus
 from .core.worker import WorkerPool, WorkerStatus
 from .core.config_manager import ConfigManager
@@ -185,6 +186,9 @@ __all__ = [
     'FeedbackType',
     'ToolMemory',
     'ToolStatus',
+    'OptimizedScheduler',
+    'Priority',
+    'TaskStatus',
     'CrewDefinition',
     
     # Advanced Core - Workflow
