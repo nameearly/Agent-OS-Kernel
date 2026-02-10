@@ -457,6 +457,8 @@ Agent OS Kernel is deeply inspired by [AIOS](https://github.com/agiresearch/AIOS
 - [AutoGen](https://microsoft.github.io/autogen/) - Microsoft multi-agent framework
 - [AutoGen Studio](https://microsoft.github.io/autogen-studio/) - No-code multi-agent development GUI
 - [MetaGPT](https://github.com/geekan/MetaGPT) - Software development multi-agent framework
+- [OpenAGI](https://github.com/yfzhang114/OpenAGI) - Task decomposition and tool selection
+- [Open-Interpreter](https://github.com/open-interpreter/open-interpreter) - Code interpreter, natural language code execution
 
 #### Agent Infrastructure
 - [E2B](https://e2b.dev/) - Agent sandbox environment
@@ -470,6 +472,11 @@ Agent OS Kernel is deeply inspired by [AIOS](https://github.com/agiresearch/AIOS
 #### Protocols and Standards
 - [MCP](https://modelcontextprotocol.io/) - Model Context Protocol by Anthropic
 - [OSWorld](https://github.com/xlang-ai/OSWorld) - Computer use agent benchmark
+
+#### Academic Papers
+- [AIOS (arXiv:2403.16971)](https://arxiv.org/abs/2403.16971) - Agent OS Architecture
+- [A-Mem (arXiv:2502.12110)](https://arxiv.org/abs/2502.12110) - Agentic Memory for LLM Agents
+- [LiteCUA (arXiv:2505.18829)](https://arxiv.org/abs/2505.18829) - Learning Agent Evaluation
 
 ### 📚 Project Documentation
 

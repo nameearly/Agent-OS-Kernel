@@ -462,6 +462,10 @@ Agent OS Kernel 深度参考 [AIOS](https://github.com/agiresearch/AIOS) (COLM 2
 - [E2B](https://e2b.dev/) - Agent 安全沙箱环境，10.8k+ stars
 - [AIWaves Agents](https://github.com/aiwaves-cn/agents) - 自学习语言 Agent，支持符号学习
 
+#### Agent 框架
+- [OpenAGI](https://github.com/yfzhang114/OpenAGI) - 任务分解和工具选择框架
+- [Open-Interpreter](https://github.com/open-interpreter/open-interpreter) - 代码解释器，自然语言执行代码
+
 #### 工作流与工具
 - [ActivePieces](https://github.com/activepieces/activepieces) - AI 工作流自动化，15k+ stars
 - [Cerebrum](https://github.com/agiresearch/Cerebrum) - AIOS SDK，Agent 开发部署平台
@@ -470,6 +474,11 @@ Agent OS Kernel 深度参考 [AIOS](https://github.com/agiresearch/AIOS) (COLM 2
 #### 协议与标准
 - [MCP](https://modelcontextprotocol.io/) - Model Context Protocol，Anthropic 提出
 - [OSWorld](https://github.com/xlang-ai/OSWorld) - 电脑使用 Agent 基准测试
+
+#### 学术论文
+- [AIOS (arXiv:2403.16971)](https://arxiv.org/abs/2403.16971) - Agent OS 架构设计
+- [A-Mem (arXiv:2502.12110)](https://arxiv.org/abs/2502.12110) - Agentic Memory for LLM Agents
+- [LiteCUA (arXiv:2505.18829)](https://arxiv.org/abs/2505.18829) - 学习 Agent 评估基准
 
 ### 📚 项目文档
 
