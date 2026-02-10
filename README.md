@@ -71,29 +71,6 @@ kernel.run(max_iterations=10)
 kernel.print_status()
 ```
 
-### 中国模型示例
-
-```python
-from agent_os_kernel.llm import LLMProviderFactory, LLMConfig
-
-factory = LLMProviderFactory()
-
-# 使用 DeepSeek
-provider = factory.create(LLMConfig(
-    provider="deepseek",
-    model="deepseek-chat",
-    api_key="your-api-key"
-))
-
-# 或使用 Kimi
-provider = factory.create(LLMConfig(
-    provider="kimi",
-    model="moonshot-v1-32k",
-    api_key="your-api-key"
-))
-```
-
----
 
 ## 🏗️ Architecture
 
