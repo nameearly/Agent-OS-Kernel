@@ -6,13 +6,14 @@
 
 > Inspired by [Ruohang Feng's "The Operating System Moment for AI Agents"](https://vonng.com/db/agent-os/), attempting to fill the "missing kernel" in the Agent ecosystem
 
-[![CI](https://github.com/bit-cook/Agent-OS-Kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/bit-cook/Agent-OS-Kernel/actions)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-0.2.0-green.svg)](https://github.com/bit-cook/Agent-OS-Kernel/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+**Chinese Models Supported**: DeepSeek | Kimi | MiniMax | Qwen
 
-[中文](./README.md) | [English](./README_EN.md) | [Manifesto](./MANIFESTO.md) | [Docs](https://github.com/bit-cook/Agent-OS-Kernel/wiki) | [Examples](./examples)
+[![CI](https://github.com/bit-cook/Agent-OS-Kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/bit-cook/Agent-OS-Kernel/actions)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/bit-cook/Agent-OS-Kernel/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+[English](./README_EN.md) | [中文](./README.md) | [Manifesto](./MANIFESTO.md) | [Docs](docs/) | [Examples](./examples)
 
 </div>
 
@@ -20,283 +21,24 @@
 
 ## 📖 Project Origin
 
-In 2025, coding Agents exploded. Products like Claude Code and Manus demonstrated the amazing capabilities of AI Agents. But look closely, and you'll discover a startling fact: **their underlying operations are extremely "primitive"**.
+In 2025, coding Agents exploded. Products like Claude Code and Manus demonstrated the amazing capabilities of AI Agents. But look closely, and you'll discover a startling fact: **their underlying operations are extremely "primitive".**
 
-Agents directly manipulate the file system and terminal, relying on a "trust model" rather than an "isolation model." This is just like **1980s DOS** — no memory protection, no multitasking, no standardized device interfaces.
-
-It took us 30 years to evolve from DOS to modern operating systems, and the Agent ecosystem is now compressing and replaying this history.
+Agents directly manipulate the file system and terminal, relying on a "trust model" rather than an "isolation model". This is just like **1980s DOS** — no memory protection, no multitasking, no standardized device interfaces.
 
 **Agent OS Kernel was born to fill this "missing kernel."**
 
-> For detailed philosophy, please read our [Manifesto (MANIFESTO.md)](./MANIFESTO.md) and the inspiration source ["The Operating System Moment for AI Agents"](https://vonng.com/db/agent-os/)
-
 ---
 
-## 🎯 Core Insight: Understanding Agent Infrastructure Through Operating Systems
+## 🎯 Core Insight
 
 | Traditional Computer | Agent World | Core Challenge | Agent OS Kernel Solution |
-|---------------------|-------------|----------------|-------------------------|
+|---------------------|-------------|----------------|------------------------|
 | **CPU** | **LLM** | How to efficiently schedule inference tasks? | Preemptive scheduling + resource quota management |
-| **RAM** | **Context Window** | How to manage limited context windows? | [Virtual memory-style context management](#-memory-management-the-most-complex-and-important-battlefield) |
-| **Disk** | **Database** | How to persist state? | [PostgreSQL's five roles](#-storage-database-the-most-certain-opportunity) |
-| **Process** | **Agent** | How to manage lifecycle? | [True process management](#-process-management-red-ocean-on-the-surface-deep-waters-unexplored) |
-| **Device Driver** | **Tools** | How to standardize tool invocation? | [Agent-Native CLI](#-io-management-the-appearance-and-essence-of-protocol-wars) |
-| **Security** | **Sandbox** | How to ensure security? | [Sandbox + Observability + Audit](#-security-and-observability-trust-infrastructure) |
-
-> **Core Insight**: Just as Linux lets applications ignore hardware details, Agent OS Kernel lets AI Agents ignore context management, resource scheduling, and persistent storage.
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Agent Applications                     │
-│     (CodeAssistant │ ResearchAgent │ DataAnalyst...)    │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│                 🎛️ Agent OS Kernel                       │
-│  ┌──────────────┬──────────────┬──────────────┐         │
-│  │   Context    │   Process    │    I/O       │         │
-│  │   Manager    │  Scheduler   │   Manager    │         │
-│  │  (Virtual    │  (Scheduler) │  (Tools)     │         │
-│  │   Memory)    │              │              │         │
-│  └──────────────┴──────────────┴──────────────┘         │
-│  ┌──────────────────────────────────────────┐           │
-│  │       💾 Storage Layer (PostgreSQL)       │           │
-│  │   Memory │ State │ Vector Index │ Audit   │           │
-│  └──────────────────────────────────────────┘           │
-│  ┌──────────────────────────────────────────┐           │
-│  │       🔒 Security Subsystem               │           │
-│  │   Sandbox │ Observability │ Audit        │           │
-│  └──────────────────────────────────────────┘           │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│                 🖥️ Hardware Resources                     │
-│        LLM APIs │ Vector DB │ Message Queue              │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## ✨ Core Features
-
-### 🧠 Memory Management: The Most Complex and Important Battlefield
-
-**History Lesson: Is 640KB Enough?** In 1981, IBM PC designers thought 640KB of memory "should be enough." Today, when we say 128K context is "already large," we're making the same mistake.
-
-Agent OS Kernel implements **operating system-level virtual memory mechanisms**:
-
-- **Context Pages**: Split long contexts into fixed-size pages
-- **Page Fault**: Automatically load pages from database when accessed but not in memory
-- **Page Replacement**: LRU + importance + semantic similarity multi-factor scoring
-- **KV-Cache Optimization**: Static content first, dynamic content sorted by access frequency
-
-> **Manus's Core Experience**: KV-Cache hit rate is the most important performance metric. On Claude, cached tokens cost 1/10th of uncached tokens.
-
-```python
-from agent_os_kernel import ContextManager
-
-# Use context like virtual memory
-cm = ContextManager(max_context_tokens=128000)
-
-# Allocate page (automatic overflow handling)
-page_id = cm.allocate_page(
-    agent_pid="agent-1",
-    content="Large amount of context content...",
-    importance=0.8,
-    page_type="user"
-)
-
-# Access page (automatic swap in)
-page = cm.access_page(page_id)
-
-# Get optimized context (KV-Cache friendly layout)
-context = cm.get_agent_context(
-    agent_pid="agent-1",
-    optimize_for_cache=True  # Key: optimize cache hit rate
-)
-```
-
-**Memory Hierarchy** (referencing DeepSeek Engram paper):
-
-```
-L1 Cache (Registers)  ->  System Prompt (< 1K tokens, always in context)
-L2 Cache (Cache)      ->  Working Memory (10-20K tokens, current task)
-RAM (Memory)          ->  Session Context (50-100K tokens, current session)
-Disk (Storage)        ->  Long-term Memory (database, unlimited capacity)
-```
-
-### 💾 Storage (Database): The Most Certain Opportunity
-
-**PostgreSQL's Five Roles**:
-
-| Role | Function | Analogy |
-|-----|------|------|
-| **Long-term Memory** | Conversation history, learned knowledge, user preferences | Hippocampus |
-| **State Persistence** | Checkpoints/snapshots, task state, recovery points | Hard Disk |
-| **Vector Index** | Semantic retrieval, similarity matching, context swap decisions | Page Table |
-| **Coordination** | Distributed locks, task queues, event notifications | IPC Mechanism |
-| **Audit Log** | Immutable records of all operations, compliance, replayability | Black Box |
-
-```python
-from agent_os_kernel import StorageManager
-
-# PostgreSQL serves five roles simultaneously
-storage = StorageManager.from_postgresql(
-    "postgresql://user:pass@localhost/agent_os",
-    enable_vector=True  # Enable vector search (pgvector)
-)
-
-# 1. Long-term memory - save conversation history
-storage.save_conversation(agent_pid, messages)
-
-# 2. State persistence - create checkpoint
-checkpoint_id = storage.create_checkpoint(agent_pid)
-
-# 3. Vector index - semantic retrieval of relevant memories
-results = storage.semantic_search(
-    agent_pid="agent-1",
-    query="Requirements user mentioned earlier",
-    limit=5
-)
-
-# 4. Coordination - distributed locks
-with storage.acquire_lock("task-123"):
-    # Execute exclusive operation
-    pass
-
-# 5. Audit log - record all operations
-storage.log_action(
-    agent_pid="agent-1",
-    action_type="tool_call",
-    input={"tool": "calculator", "args": [1, 2]},
-    output={"result": 3},
-    reasoning="User asked to calculate 1+2"
-)
-```
-
-### ⚡ Process Management: Red Ocean on the Surface, Deep Waters Unexplored
-
-The core of current Agent frameworks is almost the same while loop:
-
-```python
-while not done:
-    thought = llm.think(context)
-    action = llm.decide(thought)
-    result = tools.execute(action)
-    context.update(result)
-```
-
-**When the core abstraction is so simple that any undergraduate can implement it, it cannot be a moat.**
-
-True process management goes far beyond a while loop:
-
-- **Concurrent Scheduling**: Priority + time slice + preemptive scheduling
-- **State Persistence**: Recover from checkpoint after Agent crash
-- **Inter-Process Communication**: State synchronization between Agents
-- **Graceful Termination**: Safe exit rather than kill -9
-
-```python
-from agent_os_kernel import AgentOSKernel, ResourceQuota
-
-# Configure resource quotas
-quota = ResourceQuota(
-    max_tokens_per_window=100000,    # Hourly token limit
-    max_api_calls_per_window=1000,   # Hourly API call limit
-)
-
-kernel = AgentOSKernel(quota=quota)
-
-# Create long-running Agent
-agent_pid = kernel.spawn_agent(
-    name="DBA_Agent",
-    task="7x24 monitor database health",
-    priority=10  # High priority
-)
-
-# Recover Agent from checkpoint after crash
-new_pid = kernel.restore_checkpoint(checkpoint_id)
-```
-
-### 🛠️ I/O Management: Agent-Native CLI
-
-While MCP is popular, it has issues with large token overhead and reinventing the wheel. **Unix CLI has been doing this elegantly for 55 years.**
-
-Agent OS Kernel's judgment: **The eventual winner is "Agent-Native CLI"** — command-line tools with structured output, standardized error codes, and self-describing capabilities.
-
-```python
-from agent_os_kernel import Tool, ToolRegistry
-
-# Define tool conforming to Agent-Native CLI standard
-class DatabaseQueryTool(Tool):
-    def name(self) -> str:
-        return "query_db"
-    
-    def description(self) -> str:
-        return "Query database with SQL"
-    
-    def parameters(self) -> dict:
-        return {
-            "sql": {"type": "string", "required": True}
-        }
-    
-    def execute(self, sql: str, **kwargs) -> dict:
-        # Standardized output format
-        return {
-            "success": True,
-            "data": [...],
-            "error": None,
-            "metadata": {"rows": 10, "time_ms": 45}
-        }
-
-# Auto-discover system CLI tools
-registry = ToolRegistry()
-registry.auto_discover_cli_tools()  # Register grep, psql, curl, etc.
-```
-
-### 🔒 Security and Observability: Trust Infrastructure
-
-**Prompt Injection is the Buffer Overflow of the AI era.**
-
-True trust requires three layers of infrastructure:
-
-| Layer | Function | Analogy |
-|-----|------|------|
-| **Sandbox** | Limit what Agent can do | Prison walls |
-| **Observability** | Understand what Agent is doing and why | Security camera |
-| **Audit Log** | Trace complete decision chain afterward | Aircraft black box |
-
-```python
-from agent_os_kernel import SecurityPolicy, PermissionLevel
-
-# Configure security policy
-policy = SecurityPolicy(
-    permission_level=PermissionLevel.STANDARD,
-    max_memory_mb=512,
-    max_cpu_percent=50,
-    allowed_paths=["/workspace"],
-    blocked_paths=["/etc", "/root"],
-    network_enabled=False
-)
-
-# Create restricted Agent
-agent_pid = kernel.spawn_agent(
-    name="SandboxedAgent",
-    task="Process untrusted data",
-    policy=policy
-)
-
-# View complete audit trail
-audit = kernel.get_audit_trail(agent_pid)
-for log in audit:
-    print(f"[{log.timestamp}] {log.action_type}")
-    print(f"  Input: {log.input_data}")
-    print(f"  Reasoning: {log.reasoning}")
-    print(f"  Output: {log.output_data}")
-```
+| **RAM** | **Context Window** | How to manage limited context windows? | Virtual memory-style context management |
+| **Disk** | **Database** | How to persist state? | PostgreSQL five roles |
+| **Process** | **Agent** | How to manage lifecycle? | True process management |
+| **Device Driver** | **Tools** | How to standardize tool invocation? | MCP + Agent-Native CLI |
+| **Security** | **Sandbox** | How to ensure security? | Sandbox + observability + audit |
 
 ---
 
@@ -305,14 +47,7 @@ for log in audit:
 ### Installation
 
 ```bash
-# Basic version
 pip install agent-os-kernel
-
-# Production (PostgreSQL persistence)
-pip install agent-os-kernel[postgres]
-
-# Full features
-pip install agent-os-kernel[all]
 ```
 
 ### Basic Example
@@ -320,7 +55,6 @@ pip install agent-os-kernel[all]
 ```python
 from agent_os_kernel import AgentOSKernel
 
-# Initialize kernel
 kernel = AgentOSKernel()
 
 # Create Agent
@@ -337,106 +71,392 @@ kernel.run(max_iterations=10)
 kernel.print_status()
 ```
 
-### Claude Integration Example
+---
 
-```python
-import os
-from agent_os_kernel import ClaudeIntegratedKernel
+## 🏗️ Architecture
 
-os.environ["ANTHROPIC_API_KEY"] = "your-api-key"
-
-kernel = ClaudeIntegratedKernel()
-
-# Create research Agent
-agent_pid = kernel.spawn_agent(
-    name="ResearchAssistant",
-    task="Research latest developments in LLM context management",
-    priority=10
-)
-
-# Run and monitor
-kernel.run(max_iterations=5)
-
-# View audit trail
-audit = kernel.get_audit_trail(agent_pid)
+```
++----------------------------------------------------------------+
+|                        Agent Applications                        |
+| (CodeAssistant | ResearchAgent | DataAnalyst...)                 |
++----------------------------------------------------------------+
+                                |
+                                v
++----------------------------------------------------------------+
+|                      [ Agent OS Kernel ]                        |
++----------------------------------------------------------------+
+|  +------------------+------------------+------------------+     |
+|  |     Context      |     Process     |       I/O        |     |
+|  |     Manager      |    Scheduler    |     Manager     |     |
+|  +------------------+------------------+------------------+     |
+|  +------------------+------------------+------------------+     |
+|  | Storage Layer (PostgreSQL) | Learning Layer (Self-Learning)| |
+|  +------------------+------------------+------------------+     |
++----------------------------------------------------------------+
+                                |
+                                v
++----------------------------------------------------------------+
+|                     [ Hardware Resources ]                        |
+|             LLM APIs | Vector DB | MCP Servers                  |
++----------------------------------------------------------------+
 ```
 
 ---
 
-## 📊 Performance Benchmarks
+## 📁 Project Structure
 
-| Metric | Value | Description |
-|--------|-------|-------------|
-| **Context Utilization** | 92% | 40% improvement over native context window |
-| **KV-Cache Hit Rate** | 75% | Reduces API costs by 8x |
-| **Page Swap-in Latency** | 45ms | P95 latency |
-| **Scheduling Latency** | 3ms | From ready to running |
+```
+Agent-OS-Kernel/
+├── agent_os_kernel/          # Core code
+│   ├── kernel.py            # Main kernel
+│   ├── core/                # Core subsystems
+│   │   ├── context_manager.py  # Virtual memory management
+│   │   ├── scheduler.py        # Process scheduling
+│   │   ├── storage.py          # Persistent storage
+│   │   ├── security.py         # Security subsystem
+│   │   ├── metrics.py          # Performance metrics
+│   │   ├── plugin_system.py    # Plugin system
+│   │   └── learning/          # Self-learning system
+│   │       ├── trajectory.py   # Trajectory recording
+│   │       └── optimizer.py     # Strategy optimization
+│   ├── llm/                 # LLM Provider
+│   │   ├── provider.py       # Abstract layer
+│   │   ├── factory.py        # Factory pattern
+│   │   ├── openai.py         # OpenAI
+│   │   ├── anthropic.py      # Anthropic Claude
+│   │   ├── deepseek.py       # DeepSeek
+│   │   ├── kimi.py          # Kimi
+│   │   ├── minimax.py       # MiniMax
+│   │   ├── qwen.py          # Qwen
+│   │   ├── ollama.py         # Ollama (local)
+│   │   └── vllm.py          # vLLM (local)
+│   ├── tools/               # Tool system
+│   │   ├── registry.py      # Tool registry
+│   │   ├── base.py          # Tool base class
+│   │   └── mcp/             # MCP protocol
+│   │       ├── client.py
+│   │       └── registry.py
+│   └── api/                  # Web API
+│       ├── server.py         # FastAPI service
+│       └── static/           # Vue.js admin interface
+├── tests/                   # Test cases
+├── examples/                # Example code
+│   ├── basic_usage.py
+│   ├── agent_spawning.py
+│   ├── mcp_integration.py
+│   ├── advanced_workflow.py
+│   └── agent_learning.py
+├── docs/                    # Documentation
+│   ├── architecture.md
+│   ├── api-reference.md
+│   ├── distributed-deployment.md
+│   └── best-practices.md
+├── scripts/                 # CLI tools
+│   └── kernel-cli
+├── development-docs/       # Development plans
+│   ├── 3DAY_PLAN.md
+│   └── ITERATION_PLAN.md
+├── config.example.yaml
+├── Dockerfile
+├── docker-compose.yml
+├── Makefile
+└── pyproject.toml
+```
 
 ---
 
-## 🔍 Comparison with Other Frameworks
+## ✨ Core Features
 
-| Feature | Agent OS Kernel | LangChain | AutoGPT |
-|---------|-----------------|-----------|---------|
-| **Core Positioning** | OS Kernel | App Framework | Autonomous Agent |
-| **Context Management** | ✅ Virtual Memory | ⚠️ Chained | ❌ Manual |
-| **KV-Cache Optimization** | ✅ Built-in | ❌ | ❌ |
-| **Multi-Agent Scheduling** | ✅ Preemptive | ❌ | ❌ |
-| **PostgreSQL Five Roles** | ✅ Full Support | ⚠️ External | ⚠️ File |
-| **Agent-Native CLI** | ✅ Built-in | ⚠️ External | ❌ |
-| **Secure Sandbox** | ✅ Docker | ❌ | ❌ |
-| **Decision Audit** | ✅ Complete | ❌ | ⚠️ Logging |
+### 🧠 Memory Management: Virtual Memory-Style Context
+
+- **Context Pages**: Split long contexts into fixed-size pages
+- **Page Fault**: Automatically load pages from database when accessed but not in memory
+- **Page Replacement**: LRU + importance + semantic similarity multi-factor scoring
+- **KV-Cache Optimization**: Static content first, dynamic content sorted by access frequency
+
+```python
+from agent_os_kernel import ContextManager
+
+cm = ContextManager(max_context_tokens=128000)
+
+# Allocate page
+page_id = cm.allocate_page(
+    agent_pid="agent-1",
+    content="Large amount of context content...",
+    importance=0.8
+)
+
+# Get optimized context
+context = cm.get_agent_context(agent_pid="agent-1")
+```
+
+### 💾 Storage: PostgreSQL Five Roles
+
+| Role | Function | Analogy |
+|-----|------|------|
+| **Long-term Memory** | Conversation history, learned knowledge | Hippocampus |
+| **State Persistence** | Checkpoint/snapshot, task state | Hard Disk |
+| **Vector Index** | Semantic retrieval, pgvector | Page Table |
+| **Coordination** | Distributed locks, task queues | IPC Mechanism |
+| **Audit Log** | Immutable records of all operations | Black Box |
+
+```python
+from agent_os_kernel import StorageManager
+
+storage = StorageManager.from_postgresql(
+    "postgresql://user:pass@localhost/agent_os",
+    enable_vector=True
+)
+
+# Vector semantic search
+results = storage.semantic_search(
+    query="Requirements user mentioned earlier",
+    limit=5
+)
+```
+
+### ⚡ Process Management
+
+- **Concurrent Scheduling**: Priority + time slice + preemptive scheduling
+- **State Persistence**: Recover from checkpoint after Agent crash
+- **Inter-Process Communication**: State synchronization between Agents
+- **Graceful Termination**: Safe exit rather than kill -9
+
+```python
+from agent_os_kernel import AgentOSKernel
+
+kernel = AgentOSKernel()
+
+# Create Agent
+agent_pid = kernel.spawn_agent(
+    name="DBA_Agent",
+    task="Monitor database health status",
+    priority=10
+)
+
+# Recover from checkpoint
+new_pid = kernel.restore_checkpoint(checkpoint_id)
+```
+
+### 🔧 Multi LLM Provider Support
+
+```python
+from agent_os_kernel.llm import LLMProviderFactory, LLMConfig
+
+factory = LLMProviderFactory()
+
+providers = [
+    ("OpenAI", "gpt-4o"),
+    ("DeepSeek", "deepseek-chat"),
+    ("Kimi", "moonshot-v1-32k"),
+    ("Qwen", "qwen-turbo"),
+    ("Ollama", "qwen2.5:7b"),  # Local
+    ("vLLM", "Llama-3.1-8B"),  # Local
+]
+
+for name, model in providers:
+    provider = factory.create(LLMConfig(
+        provider=name.lower(),
+        model=model
+    ))
+```
+
+### 🧠 Self-Learning System
+
+```python
+from agent_os_kernel.core.learning import TrajectoryRecorder, AgentOptimizer
+
+# Trajectory recording
+recorder = TrajectoryRecorder()
+traj_id = recorder.start_recording("Agent1", pid, "task")
+recorder.add_step(phase="thinking", thought="Analyze problem")
+recorder.finish_recoding("success", success=True)
+
+# Strategy optimization
+optimizer = AgentOptimizer(recorder)
+analysis = optimizer.analyze("Agent1")
+
+print(f"Success rate: {analysis.success_rate:.1%}")
+print(f"Suggestions: {len(analysis.suggestions)}")
+```
+
+### 🔒 Security and Observability
+
+- **Sandbox Isolation**: Docker + resource limits
+- **Complete Audit**: Immutable records of all operations
+- **Security Policies**: Permission levels, path limits, network control
+
+```python
+from agent_os_kernel import SecurityPolicy
+
+policy = SecurityPolicy(
+    permission_level=PermissionLevel.STANDARD,
+    max_memory_mb=512,
+    allowed_paths=["/workspace"],
+    blocked_paths=["/etc", "/root"]
+)
+```
 
 ---
 
-## 🗺️ Roadmap
+## 📚 Project Documentation
 
-### v0.2.x (Current)
-- [x] Core kernel implementation
-- [x] Virtual memory-style context management
-- [x] KV-Cache optimization
-- [x] PostgreSQL five roles support
-- [x] Preemptive process scheduling
-- [x] Docker sandbox
-- [x] Complete audit trail
-
-### v0.3.0 (In Progress)
-- [ ] Database as Runtime exploration
-- [ ] Distributed scheduler
-- [ ] Agent hot migration
-- [ ] Web UI monitoring dashboard
-
-### v0.4.0 (Planned)
-- [ ] Agent-Native CLI standard
-- [ ] GPU resource management
-- [ ] Kubernetes Operator
+- [Architecture](docs/architecture.md)
+- [API Reference](docs/api-reference.md)
+- [Best Practices](docs/best-practices.md)
+- [Distributed Deployment](docs/distributed-deployment.md)
+- [Development Plans](development-docs/3DAY_PLAN.md)
 
 ---
 
-## 📚 Related Resources
+## 🇨🇳 Chinese Model Support
 
-### Inspiration Sources
+Agent OS Kernel fully supports major Chinese AI model providers:
+
+| Provider | Models | Features | Example |
+|----------|--------|----------|---------|
+| **DeepSeek** | deepseek-chat, deepseek-reasoner | Cost-effective, strong reasoning | `"deepseek-chat"` |
+| **Kimi (Moonshot)** | moonshot-v1-8k, moonshot-v1-32k | Ultra-long context | `"moonshot-v1-32k"` |
+| **MiniMax** | abab6.5s-chat | Fast response | `"abab6.5s-chat"` |
+| **Qwen (Alibaba)** | qwen-turbo, qwen-plus, qwen-max | Complete ecosystem | `"qwen-turbo"` |
+
+### Quick Configuration
+
+```yaml
+# config.yaml
+api_keys:
+  deepseek: "${DEEPSEEK_API_KEY}"
+  kimi: "${KIMI_API_KEY}"
+  minimax: "${MINIMAX_API_KEY}"
+  qwen: "${DASHSCOPE_API_KEY}"
+
+llms:
+  models:
+    - name: "deepseek-chat"
+      provider: "deepseek"
+    - name: "moonshot-v1-32k"
+      provider: "kimi"
+    - name: "qwen-turbo"
+      provider: "qwen"
+
+default_model: "deepseek-chat"
+```
+
+```python
+from agent_os_kernel.llm import LLMProviderFactory, LLMConfig
+
+factory = LLMProviderFactory()
+provider = factory.create(LLMConfig(
+    provider="deepseek",
+    model="deepseek-chat"
+))
+```
+
+---
+
+## 🔧 Common MCP Servers
+
+Full support for Model Context Protocol, connecting to 400+ MCP servers.
+
+```bash
+# File system
+npx @modelcontextprotocol/server-filesystem /path
+
+# Git
+npx @modelcontextprotocol/server-git
+
+# Database
+npx @modelcontextprotocol/server-postgres
+
+# Web browsing
+npx @playwright/mcp@latest --headless
+```
+
+---
+
+## 🏗️ AIOS Reference Architecture
+
+Agent OS Kernel is deeply inspired by [AIOS](https://github.com/agiresearch/AIOS) (COLM 2025) architecture:
+
+### AIOS Core Reference
+
+```
++----------------------------------------------------------------+
+|            [ Agent-OS-Kernel (AIOS-Inspired) ]                   |
++----------------------------------------------------------------+
+|  Kernel Layer                                                  |
+|  + LLM Core (Multi-Provider)                                    |
+|  + Context Manager (Virtual Memory)                             |
+|  + Memory Manager (Memory)                                      |
+|  + Storage Manager (Persistent)                                 |
+|  + Tool Manager (Tools)                                         |
+|  + Scheduler (Process)                                         |
++----------------------------------------------------------------+
+|  SDK Layer (Cerebrum-Style)                                     |
+|  + Agent Builder (Builder)                                       |
+|  + Tool Registry (Registry)                                      |
+|  + Plugin System (Plugins)                                      |
++----------------------------------------------------------------+
+```
+
+### AIOS Key Feature Implementation
+
+| AIOS Feature | Agent-OS-Kernel Support |
+|--------------|------------------------|
+| Multi LLM Provider | ✅ 9+ Providers |
+| Agent Scheduling | ✅ Preemptive scheduling |
+| Memory Management | ✅ Virtual memory-style context |
+| Tool Management | ✅ MCP + Native CLI |
+| Deployment Mode | ✅ Local/Remote |
+| CLI Tools | ✅ kernel-cli |
+
+---
+
+## 🔗 Related Resources
+
+### 📖 Inspiration Sources
+- [AIOS (COLM 2025)](https://github.com/agiresearch/AIOS) - Agent OS architecture, published at Conference on Language Modeling
 - ["The Operating System Moment for AI Agents"](https://vonng.com/db/agent-os/) - Ruohang Feng
-- [Context Engineering for AI Agents](https://manus.im/blog/context-engineering) - Manus
-- [Engram](https://arxiv.org/abs/2502.01623) - DeepSeek
+- [Manus - Context Engineering](https://manus.im/blog/context-engineering) - Context engineering practices
+- [DeepSeek Engram](https://arxiv.org/abs/2502.01623) - Memory-enhanced LLM reasoning
 
-### Related Projects
-- [Pigsty](https://pigsty.io/) - PostgreSQL distribution
-- [E2B](https://e2b.dev/) - Agent sandbox
-- [MCP](https://modelcontextprotocol.io/) - Model Context Protocol
+### 🌟 Reference Projects
+
+#### Agent Frameworks
+- [AutoGen](https://microsoft.github.io/autogen/) - Microsoft multi-agent framework
+- [AutoGen Studio](https://microsoft.github.io/autogen-studio/) - No-code multi-agent development GUI
+- [MetaGPT](https://github.com/geekan/MetaGPT) - Software development multi-agent framework
+
+#### Agent Infrastructure
+- [E2B](https://e2b.dev/) - Agent sandbox environment
+- [AIWaves Agents](https://github.com/aiwaves-cn/agents) - Self-learning language agents
+
+#### Workflow and Tools
+- [ActivePieces](https://github.com/activepieces/activepieces) - AI workflow automation
+- [Cerebrum](https://github.com/agiresearch/Cerebrum) - AIOS SDK
+- [CowAgent](https://github.com/CowAI-Lab/CowAgent) - Multi-platform agent
+
+#### Protocols and Standards
+- [MCP](https://modelcontextprotocol.io/) - Model Context Protocol by Anthropic
+- [OSWorld](https://github.com/xlang-ai/OSWorld) - Computer use agent benchmark
+
+### 📚 Project Documentation
+- [AIOS_ANALYSIS.md](./AIOS_ANALYSIS.md) - AIOS deep analysis
+- [INSPIRATION.md](./INSPIRATION.md) - GitHub project inspiration collection
+- [Development Plans](development-docs/3DAY_PLAN.md) - Project development plans
 
 ---
 
 ## 📄 License
 
-MIT License © 2026 Bit-Cook
+MIT License © 2026 OpenClaw
 
 ---
 
 <div align="center">
 
-**If this project helps you, please give us a ⭐️ Star!**
+**Give us a ⭐ Star if this project helps you!**
 
-[![Star History Chart](https://api.star-history.com/svg?repos=bit-cook/Agent-OS-Kernel&type=Date)](https://star-history.com/#bit-cook/Agent-OS-Kernel&Date)
+[![Star History](https://api.star-history.com/svg?repos=bit-cook/Agent-OS-Kernel&type=Date)](https://star-history.com/#bit-cook/Agent-OS-Kernel&Date)
 
 </div>
