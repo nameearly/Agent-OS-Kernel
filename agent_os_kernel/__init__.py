@@ -40,8 +40,9 @@ from .core.stream_handler import StreamHandler, StreamType, StreamChunk, StreamM
 from .core.pipeline import Pipeline, PipelineItem, PipelineStage
 from .core.cache_system import CacheSystem, CacheLevel, EvictionPolicy
 from .core.lock_manager import LockManager, LockType, async_lock
-from .core.state_machine import StateMachine, EventType
+from .core.state_machine import StateMachine, EventType as StateEventType
 from .core.memory_feedback import MemoryFeedbackSystem, FeedbackType
+from .core.exceptions import ErrorHandler, retry, AgentOSKernelError, AgentError, ValidationError
 from .core.tool_memory import ToolMemory, ToolStatus
 from .core.optimized_scheduler import OptimizedScheduler, Priority, TaskStatus
 from .core.monitoring import Monitor, HealthStatus
@@ -49,13 +50,13 @@ from .core.worker import WorkerPool, WorkerStatus
 from .core.config_manager import ConfigManager
 from .core.workflow_engine import WorkflowEngine, Workflow, WorkflowNode
 from .core.event_bus import Event as CoreEvent
-from .core.event_bus_enhanced import EnhancedEventBus, EventType, EventPriority
+from .core.event_bus_enhanced import EnhancedEventBus, EventType as EnhancedEventType, EventPriority, get_event_bus, set_event_bus
 from .core.storage_enhanced import EnhancedStorageManager, StorageRole
 from .core.circuit_breaker import CircuitBreaker, CircuitState, CircuitConfig, get_circuit_breaker, get_circuit_breaker_manager
 from .core.agent_registry import AgentRegistry, AgentMetadata
 from .core.rate_limiter import RateLimiter, RateLimitConfig
 from .core.agent_pool import AgentPool, PooledAgent
-from .core.events import EventBus, Event, EventType, create_event_bus
+from .core.events import EventBus, Event, EventType as SimpleEventType, create_event_bus
 from .core.state import StateManager, AgentState, create_state_manager
 from .core.metrics import (
     MetricsCollector, Metric, MetricType,
@@ -107,8 +108,12 @@ __all__ = [
     # Advanced Core
     'EventBus',
     'Event',
-    'EventType',
+    'EnhancedEventType',
+    'StateEventType',
+    'SimpleEventType',
     'create_event_bus',
+    'get_event_bus',
+    'set_event_bus',
     'StateManager',
     'AgentState',
     'create_state_manager',
@@ -182,7 +187,9 @@ __all__ = [
     'LockManager',
     'LockType',
     'StateMachine',
-    'EventType',
+    'EnhancedEventType',
+    'StateEventType',
+    'SimpleEventType',
     'Monitor',
     'HealthStatus',
     'WorkerPool',
