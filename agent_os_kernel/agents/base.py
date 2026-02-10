@@ -29,6 +29,9 @@ class AgentState(Enum):
 class AgentConfig:
     """Agent 配置"""
     name: str
+    role: str = ""  # 角色，如 "Senior Researcher"
+    goal: str = ""  # 目标，如 "Discover breakthrough technologies"
+    backstory: str = ""  # 背景，如 "Expert researcher with 10 years experience"
     system_prompt: str = ""
     max_iterations: int = 100
     timeout_seconds: int = 300
