@@ -8,7 +8,8 @@ from agent_os_kernel.core.optimized_scheduler import (
 )
 
 
-class TestOptimizedScheduler:
+@pytest.mark.asyncio
+class TestOptimizedSchedulerAsync:
     """OptimizedScheduler 测试类"""
     
     @pytest.fixture
@@ -84,7 +85,8 @@ class TestOptimizedScheduler:
         await asyncio.sleep(0.2)
         
         # 延迟应该生效
-        assert scheduler.get_queue_size() == 0 or scheduler._running or True
+        stats = scheduler.get_stats()
+        assert "queue_size" in stats
     
     async def test_get_result(self, scheduler):
         """测试获取结果"""

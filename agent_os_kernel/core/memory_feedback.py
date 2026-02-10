@@ -111,7 +111,7 @@ class MemoryFeedbackSystem:
             
             feedback = self._feedbacks[feedback_id]
             feedback.applied = True
-            feedback.applied_at = datetime.utcnow()
+            feedback.applied_at = datetime.now()
         
         logger.info(f"Feedback applied: {feedback_id}")
         
