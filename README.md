@@ -187,7 +187,7 @@ Agent-OS-Kernel/
 ├── development-docs/       # 开发计划
 │   ├── 3DAY_PLAN.md
 │   └── ITERATION_PLAN.md
-├── config.example.yaml      # 配置模板
+├── config/config.example.yaml      # 配置模板
 ├── Dockerfile
 ├── docker-compose.yml
 ├── Makefile
