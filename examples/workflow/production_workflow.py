@@ -17,9 +17,7 @@ from agent_os_kernel import (
 )
 from agent_os_kernel.core.agent_pool import AgentPool
 from agent_os_kernel.core.rate_limiter import RateLimitConfig, RateLimiter
-from agent_os_kernel.core.enhanced_memory import (
-    EnhancedMemory, MemoryType, ShortTermMemory, LongTermMemory
-)
+from agent_os_kernel.core.enhanced_memory import EnhancedMemory
 
 # 配置日志
 logging.basicConfig(
@@ -162,11 +160,11 @@ class ProductionWorkflow:
             "rate_limiter": self.rate_limiter.get_stats("default") if self.rate_limiter else {},
             "memory": self.memory.get_stats() if self.memory else {},
             "kernel": self.kernel.get_stats() if self.kernel else {}
- main():
-    """        }
+        }
 
 
-async def主函数"""
+async def main():
+    """主函数"""
     workflow = ProductionWorkflow()
     
     try:

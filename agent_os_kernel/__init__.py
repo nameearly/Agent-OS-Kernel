@@ -27,6 +27,18 @@ from .core.storage import StorageManager
 from .core.security import SecurityPolicy
 
 # ========== Advanced Core ==========
+from .core.agent_definition import AgentDefinition, TaskDefinition, CrewDefinition
+from .core.checkpointer import Checkpointer
+from .core.enhanced_memory import EnhancedMemory, MemoryType, ShortTermMemory, LongTermMemory
+from .core.cost_tracker import CostTracker, CostLimit
+from .core.observability import Observability, Event as ObsEvent
+from .core.task_manager import TaskManager, TaskStatus
+from .core.workflow_engine import WorkflowEngine, Workflow, WorkflowNode
+from .core.event_bus import Event as CoreEvent
+from .core.circuit_breaker import CircuitBreaker, CircuitState, CircuitConfig
+from .core.agent_registry import AgentRegistry, AgentMetadata
+from .core.rate_limiter import RateLimiter, RateLimitConfig
+from .core.agent_pool import AgentPool, PooledAgent
 from .core.events import EventBus, Event, EventType, create_event_bus
 from .core.state import StateManager, AgentState, create_state_manager
 from .core.metrics import (
@@ -117,6 +129,47 @@ __all__ = [
     # Kernel
     'AgentOSKernel',
     'KernelStats',
+    
+    # Advanced Core - Agent Definition
+    'AgentDefinition',
+    'TaskDefinition',
+    'Checkpointer',
+    'EnhancedMemory',
+    'MemoryType',
+    'ShortTermMemory',
+    'LongTermMemory',
+    'CostTracker',
+    'CostLimit',
+    'Observability',
+    'ObsEvent',
+    'TaskManager',
+    'TaskStatus',
+    'CrewDefinition',
+    
+    # Advanced Core - Workflow
+    'WorkflowEngine',
+    'Workflow',
+    'WorkflowNode',
+    
+    # Advanced Core - Event
+    'CoreEvent',
+    
+    # Advanced Core - Circuit Breaker
+    'CircuitBreaker',
+    'CircuitState',
+    'CircuitConfig',
+    
+    # Advanced Core - Registry
+    'AgentRegistry',
+    'AgentMetadata',
+    
+    # Advanced Core - Rate Limiter
+    'RateLimiter',
+    'RateLimitConfig',
+    
+    # Advanced Core - Pool
+    'AgentPool',
+    'PooledAgent',
     
     # API
     'AgentOSKernelAPI',

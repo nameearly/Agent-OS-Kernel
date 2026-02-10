@@ -117,3 +117,12 @@ __all__ += [
     'AgentMetadata',
     'get_agent_registry',
 ]
+
+# ========== Agent Definition ==========
+from .agent_definition import AgentDefinition, TaskDefinition, CrewDefinition
+
+__all__ += [
+    'AgentDefinition',
+    'TaskDefinition',
+    'CrewDefinition',
+]
