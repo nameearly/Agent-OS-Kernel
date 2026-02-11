@@ -38,7 +38,7 @@ class Event:
     
     id: str
     type: str
-    timestamp: datetime
+    timestamp: datetime = field(default_factory=datetime.utcnow)
     agent_id: Optional[str] = None
     task_id: Optional[str] = None
     
