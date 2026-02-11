@@ -1,337 +1,880 @@
 # -*- coding: utf-8 -*-
-"""Metrics Collector - 指标收集器
+"""
+Metrics Collector - Agent-OS-Kernel 指标收集器
 
-生产级别的指标收集和监控系统。
+提供完整的指标收集系统,包括:
+- Counter (计数器): 只增不减的指标
+- Gauge (仪表盘): 可增可减的瞬时值指标
+- Histogram (直方图): 统计分布的指标
+- 指标导出功能
+
+支持多种导出格式: JSON, Prometheus, Text
 """
 
-import asyncio
-import logging
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta, timedelta
-from enum import Enum
 import json
-import uuid
-from collections import defaultdict
+import logging
 import threading
+import time
+import uuid
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set, Union
+from statistics import mean, median, stdev, pstdev
 
 logger = logging.getLogger(__name__)
 
 
 class MetricType(Enum):
-    """指标类型"""
+    """指标类型枚举"""
     COUNTER = "counter"
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
-    SUMMARY = "summary"
 
 
-class AggregationType(Enum):
-    """聚合类型"""
-    SUM = "sum"
-    AVG = "avg"
-    MIN = "min"
-    MAX = "max"
-    COUNT = "count"
-    PERCENTILE_50 = "p50"
-    PERCENTILE_90 = "p90"
-    PERCENTILE_99 = "p99"
+class ExportFormat(Enum):
+    """导出格式枚举"""
+    JSON = "json"
+    PROMETHEUS = "prometheus"
+    TEXT = "text"
 
 
 @dataclass
-class MetricConfig:
-    """指标配置"""
+class MetricLabel:
+    """指标标签"""
     name: str
+    value: str
+
+
+@dataclass
+class MetricSample:
+    """指标样本"""
+    name: str
+    value: float
     metric_type: MetricType
+    labels: Dict[str, str] = field(default_factory=dict)
+    timestamp: float = field(default_factory=time.time)
     description: str = ""
-    labels: List[str] = field(default_factory=list)
-    buckets: Optional[List[float]] = None  # For histogram
-    percentiles: Optional[List[float]] = None  # For summary
 
 
-class MetricsCollector:
-    """指标收集器"""
+class Counter:
+    """
+    计数器 - 只增不减的指标
+    
+    适用于统计请求数量、错误数量等累计值。
+    """
+    
+    def __init__(self, name: str, description: str = "", labels: List[str] = None):
+        """
+        初始化计数器
+        
+        Args:
+            name: 指标名称
+            description: 指标描述
+            labels: 标签列表
+        """
+        self.name = name
+        self.description = description
+        self.labels = labels or []
+        self._values: Dict[tuple, float] = defaultdict(float)
+        self._lock = threading.Lock()
+    
+    def _get_label_values(self, label_values: Dict[str, str]) -> tuple:
+        """获取标签元组"""
+        if not self.labels:
+            return ()
+        return tuple(label_values.get(label, "") for label in self.labels)
+    
+    def inc(self, amount: float = 1.0, label_values: Dict[str, str] = None):
+        """
+        增加计数器
+        
+        Args:
+            amount: 增加量
+            label_values: 标签值字典
+        """
+        with self._lock:
+            labels = self._get_label_values(label_values or {})
+            self._values[labels] += amount
+    
+    def dec(self, amount: float = 1.0, label_values: Dict[str, str] = None):
+        """
+        减少计数器
+        
+        Args:
+            amount: 减少量
+            label_values: 标签值字典
+        """
+        with self._lock:
+            labels = self._get_label_values(label_values or {})
+            self._values[labels] = max(0, self._values[labels] - amount)
+    
+    def value(self, label_values: Dict[str, str] = None) -> float:
+        """
+        获取当前值
+        
+        Args:
+            label_values: 标签值字典
+            
+        Returns:
+            当前计数值
+        """
+        with self._lock:
+            labels = self._get_label_values(label_values or {})
+            return self._values[labels]
+    
+    def get_all_values(self) -> Dict[tuple, float]:
+        """获取所有标签组合的值"""
+        with self._lock:
+            return dict(self._values)
+    
+    def reset(self, label_values: Dict[str, str] = None):
+        """
+        重置计数器
+        
+        Args:
+            label_values: 标签值字典
+        """
+        with self._lock:
+            if label_values:
+                labels = self._get_label_values(label_values)
+                self._values[labels] = 0
+            else:
+                self._values.clear()
+    
+    def samples(self) -> List[MetricSample]:
+        """生成指标样本"""
+        samples = []
+        for labels_tuple, value in self._values.items():
+            label_dict = dict(zip(self.labels, labels_tuple)) if self.labels else {}
+            samples.append(MetricSample(
+                name=self.name,
+                value=value,
+                metric_type=MetricType.COUNTER,
+                labels=label_dict,
+                description=self.description
+            ))
+        return samples
+
+
+class Gauge:
+    """
+    仪表盘 - 可增可减的瞬时值指标
+    
+    适用于当前连接数、内存使用量等瞬时值。
+    """
+    
+    def __init__(self, name: str, description: str = "", labels: List[str] = None):
+        """
+        初始化仪表盘
+        
+        Args:
+            name: 指标名称
+            description: 指标描述
+            labels: 标签列表
+        """
+        self.name = name
+        self.description = description
+        self.labels = labels or []
+        self._values: Dict[tuple, float] = defaultdict(float)
+        self._lock = threading.Lock()
+    
+    def _get_label_values(self, label_values: Dict[str, str]) -> tuple:
+        """获取标签元组"""
+        if not self.labels:
+            return ()
+        return tuple(label_values.get(label, "") for label in self.labels)
+    
+    def set(self, value: float, label_values: Dict[str, str] = None):
+        """
+        设置值
+        
+        Args:
+            value: 设置的值
+            label_values: 标签值字典
+        """
+        with self._lock:
+            labels = self._get_label_values(label_values or {})
+            self._values[labels] = value
+    
+    def inc(self, amount: float = 1.0, label_values: Dict[str, str] = None):
+        """
+        增加
+        
+        Args:
+            amount: 增加量
+            label_values: 标签值字典
+        """
+        with self._lock:
+            labels = self._get_label_values(label_values or {})
+            self._values[labels] += amount
+    
+    def dec(self, amount: float = 1.0, label_values: Dict[str, str] = None):
+        """
+        减少
+        
+        Args:
+            amount: 减少量
+            label_values: 标签值字典
+        """
+        with self._lock:
+            labels = self._get_label_values(label_values or {})
+            self._values[labels] -= amount
+    
+    def value(self, label_values: Dict[str, str] = None) -> float:
+        """
+        获取当前值
+        
+        Args:
+            label_values: 标签值字典
+            
+        Returns:
+            当前值
+        """
+        with self._lock:
+            labels = self._get_label_values(label_values or {})
+            return self._values[labels]
+    
+    def get_all_values(self) -> Dict[tuple, float]:
+        """获取所有标签组合的值"""
+        with self._lock:
+            return dict(self._values)
+    
+    def reset(self, label_values: Dict[str, str] = None):
+        """
+        重置
+        
+        Args:
+            label_values: 标签值字典
+        """
+        with self._lock:
+            if label_values:
+                labels = self._get_label_values(label_values)
+                self._values[labels] = 0
+            else:
+                self._values.clear()
+    
+    def samples(self) -> List[MetricSample]:
+        """生成指标样本"""
+        samples = []
+        for labels_tuple, value in self._values.items():
+            label_dict = dict(zip(self.labels, labels_tuple)) if self.labels else {}
+            samples.append(MetricSample(
+                name=self.name,
+                value=value,
+                metric_type=MetricType.GAUGE,
+                labels=label_dict,
+                description=self.description
+            ))
+        return samples
+
+
+class Histogram:
+    """
+    直方图 - 统计分布的指标
+    
+    适用于延迟分布、请求大小分布等需要统计分布的场景。
+    支持自定义buckets,默认为标准的Prometheus buckets。
+    """
+    
+    # 默认的bucket边界
+    DEFAULT_BUCKETS = (
+        0.005, 0.01, 0.025, 0.05, 0.075,
+        0.1, 0.25, 0.5, 0.75, 1.0, 2.5,
+        5.0, 7.5, 10.0, +float('inf')
+    )
     
     def __init__(
         self,
-        flush_interval: int = 60,
-        max_samples: int = 10000,
-        enable_console: bool = False
+        name: str,
+        description: str = "",
+        labels: List[str] = None,
+        buckets: tuple = None
     ):
         """
-        初始化指标收集器
+        初始化直方图
         
         Args:
-            flush_interval: 刷新间隔（秒）
-            max_samples: 最大样本数
-            enable_console: 是否启用控制台输出
+            name: 指标名称
+            description: 指标描述
+            labels: 标签列表
+            buckets: 自定义bucket边界
         """
-        self.flush_interval = flush_interval
-        self.max_samples = max_samples
-        self.enable_console = enable_console
+        self.name = name
+        self.description = description
+        self.labels = labels or []
+        self.buckets = buckets or self.DEFAULT_BUCKETS
         
-        self._counters: Dict[str, float] = {}
-        self._gauges: Dict[str, float] = {}
-        self._histograms: Dict[str, List[float]] = defaultdict(list)
-        self._timestamps: Dict[str, datetime] = {}
-        
-        self._labels: Dict[str, Dict[str, str]] = {}
+        # 存储每个bucket的计数
+        self._bucket_counts: Dict[tuple, Dict[float, int]] = defaultdict(lambda: defaultdict(int))
+        # 存储所有观察值
+        self._observations: Dict[tuple, List[float]] = defaultdict(list)
+        # 存储总数和总和
+        self._totals: Dict[tuple, int] = defaultdict(int)
+        self._sums: Dict[tuple, float] = defaultdict(float)
         
         self._lock = threading.Lock()
+    
+    def _get_label_values(self, label_values: Dict[str, str]) -> tuple:
+        """获取标签元组"""
+        if not self.labels:
+            return ()
+        return tuple(label_values.get(label, "") for label in self.labels)
+    
+    def observe(self, value: float, label_values: Dict[str, str] = None):
+        """
+        观察一个值
         
-        self._running = False
-        self._flush_task: Optional[threading.Thread] = None
+        Args:
+            value: 观察值
+            label_values: 标签值字典
+        """
+        with self._lock:
+            labels = self._get_label_values(label_values or {})
+            
+            # 更新bucket计数
+            for bucket in self.buckets:
+                if value <= bucket:
+                    self._bucket_counts[labels][bucket] += 1
+            
+            # 更新观察值列表
+            self._observations[labels].append(value)
+            
+            # 更新总数和总和
+            self._totals[labels] += 1
+            self._sums[labels] += value
+    
+    def get_count(self, label_values: Dict[str, str] = None) -> int:
+        """
+        获取观察总数
         
-        logger.info(f"MetricsCollector initialized: flush={flush_interval}s")
-    
-    def start(self):
-        """启动收集器"""
-        if not self._running:
-            self._running = True
-            self._flush_task = threading.Thread(target=self._flush_loop)
-            self._flush_task.daemon = True
-            self._flush_task.start()
-            logger.info("MetricsCollector started")
-    
-    def stop(self):
-        """停止收集器"""
-        self._running = False
-        if self._flush_task:
-            self._flush_task.join(timeout=5)
-        logger.info("MetricsCollector stopped")
-    
-    def counter(
-        self,
-        name: str,
-        value: float = 1,
-        labels: Dict[str, str] = None
-    ):
-        """增加计数器"""
-        key = self._make_key(name, labels)
+        Args:
+            label_values: 标签值字典
+            
+        Returns:
+            观察总数
+        """
         with self._lock:
-            self._counters[key] = self._counters.get(key, 0) + value
-            self._timestamps[key] = datetime.now(timezone.utc)
+            labels = self._get_label_values(label_values or {})
+            return self._totals[labels]
     
-    def gauge(
-        self,
-        name: str,
-        value: float,
-        labels: Dict[str, str] = None
-    ):
-        """设置仪表值"""
-        key = self._make_key(name, labels)
+    def get_sum(self, label_values: Dict[str, str] = None) -> float:
+        """
+        获取观察值总和
+        
+        Args:
+            label_values: 标签值字典
+            
+        Returns:
+            观察值总和
+        """
         with self._lock:
-            self._gauges[key] = value
-            self._timestamps[key] = datetime.now(timezone.utc)
+            labels = self._get_label_values(label_values or {})
+            return self._sums[labels]
     
-    def histogram(
-        self,
-        name: str,
-        value: float,
-        labels: Dict[str, str] = None
-    ):
-        """记录直方图"""
-        key = self._make_key(name, labels)
+    def get_bucket_counts(self, label_values: Dict[str, str] = None) -> Dict[float, int]:
+        """
+        获取bucket计数
+        
+        Args:
+            label_values: 标签值字典
+            
+        Returns:
+            bucket边界到计数的映射
+        """
         with self._lock:
-            self._histograms[key].append(value)
-            if len(self._histograms[key]) > self.max_samples:
-                self._histograms[key] = self._histograms[key][-self.max_samples:]
-            self._timestamps[key] = datetime.now(timezone.utc)
+            labels = self._get_label_values(label_values or {})
+            return dict(self._bucket_counts[labels])
     
-    def timer(
+    def get_percentiles(
         self,
-        name: str,
-        seconds: float,
-        labels: Dict[str, str] = None
-    ):
-        """记录计时器（直方图）"""
-        self.histogram(name, seconds * 1000, labels)  # ms
-    
-    def gauge_increment(
-        self,
-        name: str,
-        labels: Dict[str, str] = None
-    ):
-        """仪表值 +1"""
-        key = self._make_key(name, labels)
+        percentiles: List[float] = None,
+        label_values: Dict[str, str] = None
+    ) -> Dict[float, float]:
+        """
+        获取百分位数
+        
+        Args:
+            percentiles: 百分位数列表 (如 [0.5, 0.9, 0.99])
+            label_values: 标签值字典
+            
+        Returns:
+            百分位数到值的映射
+        """
         with self._lock:
-            self._gauges[key] = self._gauges.get(key, 0) + 1
-            self._timestamps[key] = datetime.now(timezone.utc)
+            labels = self._get_label_values(label_values or {})
+            observations = self._observations[labels]
+            
+            if not observations:
+                return {}
+            
+            observations.sort()
+            result = {}
+            for p in (percentiles or [0.5, 0.9, 0.95, 0.99]):
+                idx = int(len(observations) * p)
+                idx = min(idx, len(observations) - 1)
+                result[p] = observations[idx]
+            
+            return result
     
-    def gauge_decrement(
-        self,
-        name: str,
-        labels: Dict[str, str] = None
-    ):
-        """仪表值 -1"""
-        key = self._make_key(name, labels)
+    def reset(self, label_values: Dict[str, str] = None):
+        """
+        重置直方图
+        
+        Args:
+            label_values: 标签值字典
+        """
         with self._lock:
-            self._gauges[key] = self._gauges.get(key, 0) - 1
-            self._timestamps[key] = datetime.now(timezone.utc)
+            if label_values:
+                labels = self._get_label_values(label_values)
+                self._bucket_counts[labels].clear()
+                self._observations[labels].clear()
+                self._totals[labels] = 0
+                self._sums[labels] = 0
+            else:
+                self._bucket_counts.clear()
+                self._observations.clear()
+                self._totals.clear()
+                self._sums.clear()
     
-    def get_counter(self, name: str, labels: Dict[str, str] = None) -> float:
-        """获取计数器值"""
-        key = self._make_key(name, labels)
-        return self._counters.get(key, 0)
+    def samples(self) -> List[MetricSample]:
+        """生成指标样本"""
+        samples = []
+        
+        for labels_tuple in self._totals.keys():
+            label_dict = dict(zip(self.labels, labels_tuple)) if self.labels else {}
+            
+            # 添加_sum样本
+            samples.append(MetricSample(
+                name=f"{self.name}_sum",
+                value=self._sums[labels_tuple],
+                metric_type=MetricType.HISTOGRAM,
+                labels=label_dict,
+                description=self.description
+            ))
+            
+            # 添加_count样本
+            samples.append(MetricSample(
+                name=f"{self.name}_count",
+                value=float(self._totals[labels_tuple]),
+                metric_type=MetricType.HISTOGRAM,
+                labels=label_dict,
+                description=self.description
+            ))
+            
+            # 添加bucket样本
+            for bucket in self.buckets:
+                if bucket == float('inf'):
+                    bucket_str = "+Inf"
+                else:
+                    bucket_str = str(bucket)
+                
+                samples.append(MetricSample(
+                    name=f"{self.name}_bucket",
+                    value=float(self._bucket_counts[labels_tuple][bucket]),
+                    metric_type=MetricType.HISTOGRAM,
+                    labels=dict(label_dict, **{"le": bucket_str}),
+                    description=self.description
+                ))
+        
+        return samples
+
+
+class MetricsExporter:
+    """指标导出器"""
     
-    def get_gauge(self, name: str, labels: Dict[str, str] = None) -> float:
-        """获取仪表值"""
-        key = self._make_key(name, labels)
-        return self._gauges.get(key, 0)
+    def __init__(self, registry: "MetricsRegistry"):
+        """
+        初始化导出器
+        
+        Args:
+            registry: 指标注册表
+        """
+        self.registry = registry
     
-    def get_histogram_percentile(
-        self,
-        name: str,
-        percentile: float,
-        labels: Dict[str, str] = None
-    ) -> Optional[float]:
-        """获取直方图百分位"""
-        key = self._make_key(name, labels)
-        values = self._histograms.get(key, [])
-        if not values:
-            return None
-        values.sort()
-        idx = int(len(values) * percentile / 100)
-        return values[idx]
-    
-    def get_all(self) -> Dict:
-        """获取所有指标"""
-        with self._lock:
-            return {
-                "counters": dict(self._counters),
-                "gauges": dict(self._gauges),
-                "histograms": {
-                    k: {
-                        "count": len(v),
-                        "sum": sum(v),
-                        "min": min(v) if v else 0,
-                        "max": max(v) if v else 0,
-                        "p50": self._percentile(v, 50),
-                        "p90": self._percentile(v, 90),
-                        "p99": self._percentile(v, 99)
-                    }
-                    for k, v in self._histograms.items()
-                },
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-    
-    def reset(self):
-        """重置所有指标"""
-        with self._lock:
-            self._counters.clear()
-            self._gauges.clear()
-            self._histograms.clear()
-            self._timestamps.clear()
-        logger.info("MetricsCollector reset")
+    def export_json(self) -> str:
+        """
+        导出为JSON格式
+        
+        Returns:
+            JSON字符串
+        """
+        samples = self.registry.samples()
+        data = {
+            "metrics": [
+                {
+                    "name": s.name,
+                    "value": s.value,
+                    "type": s.metric_type.value,
+                    "labels": s.labels,
+                    "timestamp": s.timestamp,
+                    "description": s.description
+                }
+                for s in samples
+            ]
+        }
+        return json.dumps(data, indent=2)
     
     def export_prometheus(self) -> str:
-        """导出 Prometheus 格式"""
-        lines = ["# Agent-OS-Kernel Metrics"]
-        timestamp = int(datetime.now(timezone.utc).timestamp() * 1000)
+        """
+        导出为Prometheus格式
         
-        with self._lock:
-            # Counters
-            for key, value in self._counters.items():
-                metric_name, labels = self._parse_key(key)
-                labels_str = self._format_labels(labels)
-                lines.append(f"{metric_name}{labels_str} {value} {timestamp}")
+        Returns:
+            Prometheus格式字符串
+        """
+        lines = []
+        samples = self.registry.samples()
+        
+        for sample in samples:
+            # 构建标签部分
+            if sample.labels:
+                label_parts = []
+                for key, value in sample.labels.items():
+                    # 转义特殊字符
+                    escaped_value = str(value).replace('"', '\\"')
+                    label_parts.append(f'{key}="{escaped_value}"')
+                labels_str = "{" + ",".join(label_parts) + "}"
+            else:
+                labels_str = ""
             
-            # Gauges
-            for key, value in self._gauges.items():
-                metric_name, labels = self._parse_key(key)
-                labels_str = self._format_labels(labels)
-                lines.append(f"{metric_name}{labels_str} {value} {timestamp}")
+            # 添加HELP和TYPE行(只对每个指标名称添加一次)
+            if sample.metric_type != MetricType.HISTOGRAM or "_bucket" not in sample.name:
+                if sample.description:
+                    lines.append(f"# HELP {sample.name} {sample.description}")
+                type_name = sample.metric_type.value.upper()
+                if sample.metric_type == MetricType.HISTOGRAM:
+                    type_name = "HISTOGRAM"
+                lines.append(f"# TYPE {sample.name} {type_name}")
             
-            # Histograms
-            for key, values in self._histograms.items():
-                metric_name, labels = self._parse_key(key)
-                labels_str = self._format_labels(labels)
-                count = len(values)
-                sum_value = sum(values)
-                lines.append(f"{metric_name}_count{labels_str} {count} {timestamp}")
-                lines.append(f"{metric_name}_sum{labels_str} {sum_value} {timestamp}")
+            # 添加指标行
+            lines.append(f"{sample.name}{labels_str} {sample.value}")
         
         return "\n".join(lines)
     
-    def _flush_loop(self):
-        """刷新循环"""
-        while self._running:
-            try:
-                asyncio.run_coroutine_threadsafe(
-                    self._flush(),
-                    asyncio.new_event_loop()
-                )
-                self._flush()
-            except Exception as e:
-                logger.error(f"Flush error: {e}")
+    def export_text(self) -> str:
+        """
+        导出为人类可读的文本格式
+        
+        Returns:
+            文本格式字符串
+        """
+        lines = []
+        samples = self.registry.samples()
+        
+        # 按指标类型分组
+        by_type = defaultdict(list)
+        for sample in samples:
+            by_type[sample.metric_type].append(sample)
+        
+        for metric_type, type_samples in by_type.items():
+            lines.append(f"\n{'=' * 50}")
+            lines.append(f"Metric Type: {metric_type.value.upper()}")
+            lines.append(f"{'=' * 50}")
             
-            import time
-            time.sleep(self.flush_interval)
+            for sample in type_samples:
+                lines.append(f"\n{sample.name}")
+                if sample.description:
+                    lines.append(f"  Description: {sample.description}")
+                lines.append(f"  Type: {sample.metric_type.value}")
+                lines.append(f"  Value: {sample.value}")
+                if sample.labels:
+                    lines.append(f"  Labels: {sample.labels}")
+                lines.append(f"  Timestamp: {sample.timestamp}")
+        
+        return "\n".join(lines)
+
+
+class MetricsRegistry:
+    """
+    指标注册表 - 管理和收集所有指标
     
-    async def _flush(self):
-        """刷新指标"""
-        if self.enable_console:
-            metrics = self.get_all()
-            print(f"\n{'='*60}")
-            print("Metrics Flush")
-            print(f"{'='*60}")
-            print(json.dumps(metrics, indent=2, default=str))
+    是指标系统的核心,负责注册、收集和导出指标。
+    """
     
-    def _make_key(self, name: str, labels: Dict[str, str] = None) -> str:
-        """创建键"""
-        if labels:
-            label_str = ",".join(f"{k}={v}" for k, v in sorted(labels.items()))
-            return f"{name}{{{label_str}}}"
-        return name
+    def __init__(self, name: str = "default"):
+        """
+        初始化注册表
+        
+        Args:
+            name: 注册表名称
+        """
+        self.name = name
+        self._counters: Dict[str, Counter] = {}
+        self._gauges: Dict[str, Gauge] = {}
+        self._histograms: Dict[str, Histogram] = {}
+        self._lock = threading.Lock()
     
-    def _parse_key(self, key: str) -> tuple:
-        """解析键"""
-        if key.startswith("{") and key.endswith("}"):
-            name = key.split("{")[0]
-            labels_str = key[1:-1]
-            labels = dict(l.split("=") for l in labels_str.split(","))
-            return name, labels
-        return key, {}
+    def create_counter(
+        self,
+        name: str,
+        description: str = "",
+        labels: List[str] = None
+    ) -> Counter:
+        """
+        创建计数器
+        
+        Args:
+            name: 指标名称
+            description: 指标描述
+            labels: 标签列表
+            
+        Returns:
+            Counter实例
+        """
+        with self._lock:
+            if name in self._counters:
+                raise ValueError(f"Counter '{name}' already exists")
+            counter = Counter(name, description, labels)
+            self._counters[name] = counter
+            return counter
     
-    def _format_labels(self, labels: Dict[str, str]) -> str:
-        """格式化标签"""
-        if not labels:
-            return ""
-        label_str = ",".join(f'{k}="{v}"' for k, v in sorted(labels.items()))
-        return f"{{{label_str}}}"
+    def create_gauge(
+        self,
+        name: str,
+        description: str = "",
+        labels: List[str] = None
+    ) -> Gauge:
+        """
+        创建仪表盘
+        
+        Args:
+            name: 指标名称
+            description: 指标描述
+            labels: 标签列表
+            
+        Returns:
+            Gauge实例
+        """
+        with self._lock:
+            if name in self._gauges:
+                raise ValueError(f"Gauge '{name}' already exists")
+            gauge = Gauge(name, description, labels)
+            self._gauges[name] = gauge
+            return gauge
     
-    def _percentile(self, values: List[float], percentile: float) -> float:
-        """计算百分位"""
-        if not values:
-            return 0
-        values.sort()
-        idx = int(len(values) * percentile / 100)
-        return values[min(idx, len(values) - 1)]
+    def create_histogram(
+        self,
+        name: str,
+        description: str = "",
+        labels: List[str] = None,
+        buckets: tuple = None
+    ) -> Histogram:
+        """
+        创建直方图
+        
+        Args:
+            name: 指标名称
+            description: 指标描述
+            labels: 标签列表
+            buckets: 自定义bucket边界
+            
+        Returns:
+            Histogram实例
+        """
+        with self._lock:
+            if name in self._histograms:
+                raise ValueError(f"Histogram '{name}' already exists")
+            histogram = Histogram(name, description, labels, buckets)
+            self._histograms[name] = histogram
+            return histogram
+    
+    def get_counter(self, name: str) -> Optional[Counter]:
+        """获取计数器"""
+        return self._counters.get(name)
+    
+    def get_gauge(self, name: str) -> Optional[Gauge]:
+        """获取仪表盘"""
+        return self._gauges.get(name)
+    
+    def get_histogram(self, name: str) -> Optional[Histogram]:
+        """获取直方图"""
+        return self._histograms.get(name)
+    
+    def counter(self, name: str) -> Counter:
+        """
+        获取或创建计数器
+        
+        Args:
+            name: 指标名称
+            
+        Returns:
+            Counter实例
+        """
+        with self._lock:
+            if name not in self._counters:
+                self._counters[name] = Counter(name)
+            return self._counters[name]
+    
+    def gauge(self, name: str) -> Gauge:
+        """
+        获取或创建仪表盘
+        
+        Args:
+            name: 指标名称
+            
+        Returns:
+            Gauge实例
+        """
+        with self._lock:
+            if name not in self._gauges:
+                self._gauges[name] = Gauge(name)
+            return self._gauges[name]
+    
+    def histogram(self, name: str) -> Histogram:
+        """
+        获取或创建直方图
+        
+        Args:
+            name: 指标名称
+            
+        Returns:
+            Histogram实例
+        """
+        with self._lock:
+            if name not in self._histograms:
+                self._histograms[name] = Histogram(name)
+            return self._histograms[name]
+    
+    def samples(self) -> List[MetricSample]:
+        """收集所有指标样本"""
+        samples = []
+        
+        with self._lock:
+            for counter in self._counters.values():
+                samples.extend(counter.samples())
+            
+            for gauge in self._gauges.values():
+                samples.extend(gauge.samples())
+            
+            for histogram in self._histograms.values():
+                samples.extend(histogram.samples())
+        
+        return samples
+    
+    def reset(self, name: str = None):
+        """
+        重置指标
+        
+        Args:
+            name: 指标名称,为None则重置所有
+        """
+        with self._lock:
+            if name:
+                if name in self._counters:
+                    self._counters[name].reset()
+                if name in self._gauges:
+                    self._gauges[name].reset()
+                if name in self._histograms:
+                    self._histograms[name].reset()
+            else:
+                for counter in self._counters.values():
+                    counter.reset()
+                for gauge in self._gauges.values():
+                    gauge.reset()
+                for histogram in self._histograms.values():
+                    histogram.reset()
+    
+    def export(self, format: ExportFormat = ExportFormat.JSON) -> str:
+        """
+        导出指标
+        
+        Args:
+            format: 导出格式
+            
+        Returns:
+            格式化后的指标字符串
+        """
+        exporter = MetricsExporter(self)
+        
+        if format == ExportFormat.JSON:
+            return exporter.export_json()
+        elif format == ExportFormat.PROMETHEUS:
+            return exporter.export_prometheus()
+        elif format == ExportFormat.TEXT:
+            return exporter.export_text()
+        else:
+            raise ValueError(f"Unknown export format: {format}")
+    
+    def list_metrics(self) -> Dict[str, List[str]]:
+        """
+        列出所有指标
+        
+        Returns:
+            按类型分组的指标名称列表
+        """
+        with self._lock:
+            return {
+                "counters": list(self._counters.keys()),
+                "gauges": list(self._gauges.keys()),
+                "histograms": list(self._histograms.keys())
+            }
 
 
-# 全局收集器
-_global_collector: Optional[MetricsCollector] = None
+# 全局默认注册表
+_default_registry: Optional[MetricsRegistry] = None
+_registry_lock = threading.Lock()
 
 
-def get_metrics_collector() -> MetricsCollector:
-    """获取全局指标收集器"""
-    global _global_collector
-    if _global_collector is None:
-        _global_collector = MetricsCollector()
-    return _global_collector
+def get_default_registry() -> MetricsRegistry:
+    """获取默认注册表"""
+    global _default_registry
+    if _default_registry is None:
+        with _registry_lock:
+            if _default_registry is None:
+                _default_registry = MetricsRegistry("default")
+    return _default_registry
 
 
-# 便捷装饰器
-def timed(name: str, labels: Dict[str, str] = None):
-    """计时装饰器"""
-    def decorator(func):
-        async def wrapper(*args, **kwargs):
-            import time
-            start = time.time()
-            try:
-                return await func(*args, **kwargs)
-            finally:
-                collector = get_metrics_collector()
-                collector.timer(name, time.time() - start, labels)
-        return wrapper
-    return decorator
+def create_metrics_registry(name: str = "default") -> MetricsRegistry:
+    """
+    创建新的指标注册表
+    
+    Args:
+        name: 注册表名称
+        
+    Returns:
+        MetricsRegistry实例
+    """
+    return MetricsRegistry(name)
+
+
+# 便捷函数
+def create_counter(name: str, description: str = "", labels: List[str] = None) -> Counter:
+    """创建计数器"""
+    return get_default_registry().create_counter(name, description, labels)
+
+
+def create_gauge(name: str, description: str = "", labels: List[str] = None) -> Gauge:
+    """创建仪表盘"""
+    return get_default_registry().create_gauge(name, description, labels)
+
+
+def create_histogram(
+    name: str,
+    description: str = "",
+    labels: List[str] = None,
+    buckets: tuple = None
+) -> Histogram:
+    """创建直方图"""
+    return get_default_registry().create_histogram(name, description, labels, buckets)
+
+
+def counter(name: str) -> Counter:
+    """获取或创建计数器"""
+    return get_default_registry().counter(name)
+
+
+def gauge(name: str) -> Gauge:
+    """获取或创建仪表盘"""
+    return get_default_registry().gauge(name)
+
+
+def histogram(name: str) -> Histogram:
+    """获取或创建直方图"""
+    return get_default_registry().histogram(name)
+
+
+def export_metrics(format: ExportFormat = ExportFormat.JSON) -> str:
+    """导出指标"""
+    return get_default_registry().export(format)

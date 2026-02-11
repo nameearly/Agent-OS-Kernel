@@ -1,275 +1,512 @@
-# -*- coding: utf-8 -*-
-"""State Machine - 状态机
+"""
+状态机模块 - State Machine Module
 
-支持有限状态机、层次状态机、状态转换。
+提供完整的状态机功能，包括：
+- 状态定义
+- 状态转换
+- 事件处理
+- 状态回调
 """
 
-import asyncio
-import logging
-from typing import Dict, Any, Optional, Callable, List
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta, timezone
+from typing import Dict, List, Callable, Any, Optional, Set
 from enum import Enum
-from uuid import uuid4
+from dataclasses import dataclass, field
+from functools import wraps
+import threading
 
-logger = logging.getLogger(__name__)
 
-
-class EventType(Enum):
-    """事件类型"""
-    ENTER = "enter"
-    EXIT = "exit"
-    TRANSITION = "transition"
-    CUSTOM = "custom"
+class TransitionType(Enum):
+    """转换类型"""
+    SYNCHRONOUS = "synchronous"
+    ASYNCHRONOUS = "asynchronous"
 
 
 @dataclass
 class Transition:
-    """状态转换"""
+    """状态转换定义"""
     from_state: str
     to_state: str
     event: str
-    guard: Callable = None
-    action: Callable = None
+    guard: Optional[Callable[[], bool]] = None
+    action: Optional[Callable[[Any], None]] = None
+    transition_type: TransitionType = TransitionType.SYNCHRONOUS
 
 
 @dataclass
-class State:
-    """状态"""
-    name: str
-    on_enter: Callable = None
-    on_exit: Callable = None
-    on_event: Dict[str, Callable] = field(default_factory=dict)
-    is_initial: bool = False
-    is_final: bool = False
+class StateCallbacks:
+    """状态回调"""
+    on_enter: Optional[Callable[[], None]] = None
+    on_exit: Optional[Callable[[], None]] = None
+    on_update: Optional[Callable[[float], None]] = None
 
 
 class StateMachine:
-    """状态机"""
+    """
+    状态机实现
+    
+    示例:
+        sm = StateMachine(initial_state="idle")
+        sm.add_state("idle")
+        sm.add_state("running")
+        sm.add_state("completed")
+        sm.add_transition("idle", "running", "start")
+        sm.add_transition("running", "completed", "finish")
+        
+        sm.start()
+        sm.trigger_event("start")
+    """
     
     def __init__(
         self,
-        name: str = "default",
-        context: Dict = None
+        initial_state: str,
+        name: str = "StateMachine"
     ):
         """
         初始化状态机
         
         Args:
+            initial_state: 初始状态名称
             name: 状态机名称
-            context: 上下文数据
         """
         self.name = name
-        self.context = context or {}
+        self._initial_state = initial_state
+        self._current_state = initial_state
+        self._previous_state: Optional[str] = None
+        self._states: Set[str] = set()
+        self._transitions: Dict[str, List[Transition]] = {}
+        self._callbacks: Dict[str, StateCallbacks] = {}
+        self._event_queue: List[tuple] = []
+        self._is_running = False
+        self._lock = threading.RLock()
         
-        self._states: Dict[str, State] = {}
-        self._transitions: Dict[str, Dict[str, Transition]] = {}  # event -> state -> transition
-        self._current_state: Optional[State] = None
-        self._history: List[Dict] = []
-        self._lock = asyncio.Lock()
-        self._running = False
-        
-        logger.info(f"StateMachine initialized: {name}")
+        # 注册初始状态
+        self.add_state(initial_state)
+    
+    @property
+    def current_state(self) -> str:
+        """获取当前状态"""
+        return self._current_state
+    
+    @property
+    def previous_state(self) -> Optional[str]:
+        """获取前一个状态"""
+        return self._previous_state
+    
+    @property
+    def initial_state(self) -> str:
+        """获取初始状态"""
+        return self._initial_state
+    
+    @property
+    def states(self) -> Set[str]:
+        """获取所有状态"""
+        return self._states.copy()
     
     def add_state(
         self,
-        name: str,
-        on_enter: Callable = None,
-        on_exit: Callable = None,
-        is_initial: bool = False,
-        is_final: bool = False
-    ):
-        """添加状态"""
-        state = State(
-            name=name,
-            on_enter=on_enter,
-            on_exit=on_exit,
-            is_initial=is_initial,
-            is_final=is_final
-        )
+        state: str,
+        on_enter: Optional[Callable[[], None]] = None,
+        on_exit: Optional[Callable[[], None]] = None,
+        on_update: Optional[Callable[[float], None]] = None
+    ) -> None:
+        """
+        添加状态
         
-        self._states[name] = state
-        self._transitions[name] = {}
-        
-        if is_initial:
-            self._current_state = state
-        
-        logger.debug(f"State added: {name}")
+        Args:
+            state: 状态名称
+            on_enter: 进入状态时的回调
+            on_exit: 离开状态时的回调
+            on_update: 状态更新时的回调（dt为时间增量）
+        """
+        with self._lock:
+            self._states.add(state)
+            self._transitions[state] = []
+            self._callbacks[state] = StateCallbacks(
+                on_enter=on_enter,
+                on_exit=on_exit,
+                on_update=on_update
+            )
     
     def add_transition(
         self,
         from_state: str,
         to_state: str,
         event: str,
-        guard: Callable = None,
-        action: Callable = None
-    ):
-        """添加转换"""
-        if from_state not in self._states or to_state not in self._states:
-            raise ValueError("Invalid state")
-        
-        transition = Transition(
-            from_state=from_state,
-            to_state=to_state,
-            event=event,
-            guard=guard,
-            action=action
-        )
-        
-        if event not in self._transitions[from_state]:
-            self._transitions[from_state][event] = {}
-        
-        self._transitions[from_state][event][to_state] = transition
-        
-        logger.debug(f"Transition added: {from_state} -> {to_state} on {event}")
-    
-    def on(self, event: str, from_state: str = None):
-        """装饰器添加转换"""
-        def decorator(func):
-            state = from_state or (self._current_state.name if self._current_state else None)
-            if state:
-                self.add_transition(state, event, func.__name__, action=func)
-            return func
-        return decorator
-    
-    async def start(self):
-        """启动状态机"""
-        self._running = True
-        
-        if self._current_state and self._current_state.on_enter:
-            if asyncio.iscoroutinefunction(self._current_state.on_enter):
-                await self._current_state.on_enter()
-            else:
-                self._current_state.on_enter()
-        
-        self._log_event(EventType.ENTER, self._current_state.name)
-        
-        logger.info(f"StateMachine started: {self.name}")
-    
-    async def stop(self):
-        """停止状态机"""
-        if self._current_state and self._current_state.on_exit:
-            if asyncio.iscoroutinefunction(self._current_state.on_exit):
-                await self._current_state.on_exit()
-            else:
-                self._current_state.on_exit()
-        
-        self._running = False
-        
-        logger.info(f"StateMachine stopped: {self.name}")
-    
-    async def send_event(self, event: str, data: Any = None) -> bool:
+        guard: Optional[Callable[[], bool]] = None,
+        action: Optional[Callable[[Any], None]] = None,
+        transition_type: TransitionType = TransitionType.SYNCHRONOUS
+    ) -> None:
         """
-        发送事件
+        添加状态转换
+        
+        Args:
+            from_state: 源状态
+            to_state: 目标状态
+            event: 触发事件
+            guard: 条件守卫函数
+            action: 转换动作函数
+            transition_type: 转换类型
+        """
+        with self._lock:
+            if from_state not in self._states:
+                self.add_state(from_state)
+            if to_state not in self._states:
+                self.add_state(to_state)
+            
+            transition = Transition(
+                from_state=from_state,
+                to_state=to_state,
+                event=event,
+                guard=guard,
+                action=action,
+                transition_type=transition_type
+            )
+            self._transitions[from_state].append(transition)
+    
+    def add_transitions(
+        self,
+        transitions: List[Dict[str, Any]]
+    ) -> None:
+        """
+        批量添加状态转换
+        
+        Args:
+            transitions: 转换配置列表
+        """
+        for t in transitions:
+            self.add_transition(
+                from_state=t.get('from_state'),
+                to_state=t.get('to_state'),
+                event=t.get('event'),
+                guard=t.get('guard'),
+                action=t.get('action'),
+                transition_type=t.get('transition_type', TransitionType.SYNCHRONOUS)
+            )
+    
+    def get_transitions(self, state: str) -> List[Transition]:
+        """获取指定状态的所有转换"""
+        return self._transitions.get(state, [])
+    
+    def can_transition(self, event: str) -> bool:
+        """
+        检查是否可以进行指定事件的转换
+        
+        Args:
+            event: 事件名称
+            
+        Returns:
+            是否可以转换
+        """
+        with self._lock:
+            for transition in self._transitions.get(self._current_state, []):
+                if transition.event == event:
+                    if transition.guard is None or transition.guard():
+                        return True
+            return False
+    
+    def trigger_event(self, event: str, data: Any = None) -> bool:
+        """
+        触发事件
         
         Args:
             event: 事件名称
             data: 事件数据
             
         Returns:
-            是否成功转换
+            是否成功触发转换
         """
-        if not self._current_state:
-            return False
-        
-        async with self._lock:
-            current_name = self._current_state.name
-            
-            # 检查当前状态的事件处理
-            if event in self._current_state.on_event:
-                handler = self._current_state.on_event[event]
-                if asyncio.iscoroutinefunction(handler):
-                    await handler(data)
-                else:
-                    handler(data)
-                return True
-            
-            # 检查转换
-            if current_name in self._transitions:
-                for to_state, transition in self._transitions[current_name].get(event, {}).items():
-                    # 检查 guard
-                    if transition.guard:
-                        if asyncio.iscoroutinefunction(transition.guard):
-                            if not await transition.guard(data):
-                                continue
-                        else:
-                            if not transition.guard(data):
-                                continue
+        with self._lock:
+            # 查找匹配的转换
+            for transition in self._transitions.get(self._current_state, []):
+                if transition.event == event:
+                    # 检查条件守卫
+                    if transition.guard is not None and not transition.guard():
+                        return False
                     
-                    # 执行转换
-                    await self._transition_to(to_state, event, data, transition)
+                    # 执行状态退出回调
+                    self._execute_callback(self._current_state, 'on_exit')
+                    
+                    # 记录前一个状态
+                    self._previous_state = self._current_state
+                    
+                    # 执行转换动作
+                    if transition.action:
+                        transition.action(data)
+                    
+                    # 更新当前状态
+                    self._current_state = transition.to_state
+                    
+                    # 执行状态进入回调
+                    self._execute_callback(self._current_state, 'on_enter')
+                    
                     return True
-            
-            logger.debug(f"No transition for event {event} from state {current_name}")
             return False
     
-    async def _transition_to(self, to_state: str, event: str, data: Any, transition: Transition):
-        """执行转换"""
-        old_state = self._current_state
-        
-        # 记录历史
-        self._history.append({
-            "from": old_state.name,
-            "to": to_state,
-            "event": event,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
-        
-        # 退出旧状态
-        if old_state.on_exit:
-            if asyncio.iscoroutinefunction(old_state.on_exit):
-                await old_state.on_exit()
-            else:
-                old_state.on_exit()
-        
-        # 执行动作
-        if transition.action:
-            if asyncio.iscoroutinefunction(transition.action):
-                await transition.action(data)
-            else:
-                transition.action(data)
-        
-        # 进入新状态
-        self._current_state = self._states[to_state]
-        
-        if self._current_state.on_enter:
-            if asyncio.iscoroutinefunction(self._current_state.on_enter):
-                await self._current_state.on_enter()
-            else:
-                self._current_state.on_enter()
-        
-        # 记录转换
-        self._log_event(EventType.TRANSITION, f"{old_state.name} -> {to_state}")
-        
-        logger.info(f"State transition: {old_state.name} -> {to_state} on {event}")
+    def _execute_callback(self, state: str, callback_type: str) -> None:
+        """执行状态回调"""
+        callbacks = self._callbacks.get(state)
+        if callbacks:
+            callback = getattr(callbacks, callback_type, None)
+            if callback:
+                callback()
     
-    def _log_event(self, event_type: EventType, state: str):
-        """记录事件"""
-        logger.debug(f"Event: {event_type.value} -> {state}")
+    def start(self) -> None:
+        """启动状态机"""
+        with self._lock:
+            self._is_running = True
+            self._execute_callback(self._current_state, 'on_enter')
     
-    def get_state(self) -> Optional[str]:
-        """获取当前状态"""
-        return self._current_state.name if self._current_state else None
+    def stop(self) -> None:
+        """停止状态机"""
+        with self._lock:
+            self._is_running = False
+            self._execute_callback(self._current_state, 'on_exit')
     
-    def is_in_state(self, state_name: str) -> bool:
-        """检查是否在指定状态"""
-        return self._current_state and self._current_state.name == state_name
+    def reset(self) -> None:
+        """重置状态机"""
+        with self._lock:
+            self.stop()
+            self._current_state = self._initial_state
+            self._previous_state = None
+            self.start()
     
-    def is_final_state(self) -> bool:
-        """检查是否在最终状态"""
-        return self._current_state and self._current_state.is_final
+    def update(self, dt: float = 0.0) -> None:
+        """
+        更新状态机
+        
+        Args:
+            dt: 时间增量（秒）
+        """
+        with self._lock:
+            if self._is_running:
+                self._execute_callback(self._current_state, 'on_update')
     
-    def get_history(self) -> List[Dict]:
-        """获取历史记录"""
-        return list(self._history)
+    def is_in_state(self, state: str) -> bool:
+        """
+        检查是否在指定状态
+        
+        Args:
+            state: 状态名称
+            
+        Returns:
+            是否在指定状态
+        """
+        return self._current_state == state
     
-    def get_stats(self) -> Dict:
-        """获取统计"""
-        return {
-            "name": self.name,
-            "current_state": self.get_state(),
-            "states_count": len(self._states),
-            "transitions_count": sum(len(t) for t in self._transitions.values()),
-            "history_length": len(self._history),
-            "is_running": self._running
-        }
+    def has_state(self, state: str) -> bool:
+        """
+        检查状态是否存在
+        
+        Args:
+            state: 状态名称
+            
+        Returns:
+            状态是否存在
+        """
+        return state in self._states
+    
+    def get_possible_events(self) -> List[str]:
+        """获取当前状态下所有可能的事件"""
+        events = []
+        for transition in self._transitions.get(self._current_state, []):
+            if transition.guard is None or transition.guard():
+                events.append(transition.event)
+        return events
+    
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} '{self.name}': {self._current_state}>"
+
+
+class HierarchicalStateMachine(StateMachine):
+    """
+    层级状态机
+    
+    支持状态的层级结构，子状态可以继承父状态的转换
+    """
+    
+    def __init__(
+        self,
+        initial_state: str,
+        name: str = "HierarchicalStateMachine"
+    ):
+        super().__init__(initial_state, name)
+        self._parent_map: Dict[str, str] = {}
+        self._history_state: Optional[str] = None
+    
+    def add_substate(
+        self,
+        parent_state: str,
+        substate: str,
+        on_enter: Optional[Callable[[], None]] = None,
+        on_exit: Optional[Callable[[], None]] = None
+    ) -> None:
+        """
+        添加子状态
+        
+        Args:
+            parent_state: 父状态名称
+            substate: 子状态名称
+        """
+        self.add_state(parent_state)
+        self.add_state(substate, on_enter, on_exit)
+        self._parent_map[substate] = parent_state
+    
+    def enter_parent_state(self, parent_state: str) -> bool:
+        """
+        进入父状态（进入其初始子状态）
+        
+        Args:
+            parent_state: 父状态名称
+            
+        Returns:
+            是否成功进入
+        """
+        if parent_state not in self._states:
+            return False
+        
+        # 执行父状态进入回调
+        self._execute_callback(parent_state, 'on_exit')
+        self._previous_state = self._current_state
+        
+        # 查找初始子状态
+        initial_substate = f"{parent_state}_initial"
+        if initial_substate in self._states:
+            self._current_state = initial_substate
+        else:
+            self._current_state = parent_state
+        
+        self._execute_callback(self._current_state, 'on_enter')
+        return True
+
+
+class ParallelStateMachine(StateMachine):
+    """
+    并行状态机
+    
+    支持多个状态同时处于活动状态
+    """
+    
+    def __init__(
+        self,
+        initial_states: List[str],
+        name: str = "ParallelStateMachine"
+    ):
+        super().__init__(initial_states[0] if initial_states else "", name)
+        self._active_states: Set[str] = set(initial_states)
+        self._initial_states = initial_states
+    
+    @property
+    def current_states(self) -> Set[str]:
+        """获取所有当前状态"""
+        return self._active_states.copy()
+    
+    def add_state(
+        self,
+        state: str,
+        on_enter: Optional[Callable[[], None]] = None,
+        on_exit: Optional[Callable[[], None]] = None,
+        on_update: Optional[Callable[[float], None]] = None
+    ) -> None:
+        super().add_state(state, on_enter, on_exit, on_update)
+        if state in self._initial_states:
+            self._active_states.add(state)
+    
+    def trigger_event(self, event: str, data: Any = None) -> bool:
+        """
+        触发事件（所有匹配的状态都会尝试转换）
+        
+        Args:
+            event: 事件名称
+            data: 事件数据
+            
+        Returns:
+            是否有任何状态成功转换
+        """
+        with self._lock:
+            success = False
+            for state in list(self._active_states):
+                for transition in self._transitions.get(state, []):
+                    if transition.event == event:
+                        if transition.guard is None or transition.guard():
+                            # 执行状态退出回调
+                            self._execute_callback(state, 'on_exit')
+                            
+                            # 记录前一个状态
+                            self._previous_state = state
+                            
+                            # 执行转换动作
+                            if transition.action:
+                                transition.action(data)
+                            
+                            # 更新当前状态
+                            self._active_states.remove(state)
+                            self._active_states.add(transition.to_state)
+                            
+                            # 执行状态进入回调
+                            self._execute_callback(transition.to_state, 'on_enter')
+                            
+                            success = True
+            return success
+
+
+def state_machine(
+    initial_state: str,
+    name: str = "StateMachine"
+) -> Callable[[type], type]:
+    """
+    状态机装饰器
+    
+    用于将类转换为状态机
+    
+    示例:
+        @state_machine("idle")
+        class MyClass:
+            def on_enter_idle(self): ...
+            def on_exit_idle(self): ...
+    """
+    def decorator(cls: type) -> type:
+        sm = StateMachine(initial_state, name)
+        
+        # 自动发现状态方法
+        for attr_name in dir(cls):
+            if attr_name.startswith('on_enter_'):
+                state = attr_name[9:]
+                method = getattr(cls, attr_name)
+                if callable(method):
+                    sm.add_state(state, on_enter=method)
+            elif attr_name.startswith('on_exit_'):
+                state = attr_name[8:]
+                method = getattr(cls, attr_name)
+                if callable(method):
+                    if state not in sm._callbacks:
+                        sm.add_state(state)
+                    sm._callbacks[state].on_exit = method
+        
+        # 存储状态机实例
+        setattr(cls, '_state_machine', sm)
+        
+        # 添加代理方法
+        original_init = cls.__init__
+        
+        @wraps(original_init)
+        def new_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            # 初始化后设置实例引用
+            sm._instance = self
+        
+        cls.__init__ = new_init
+        
+        return cls
+    
+    return decorator
+
+
+__all__ = [
+    'StateMachine',
+    'HierarchicalStateMachine',
+    'ParallelStateMachine',
+    'Transition',
+    'StateCallbacks',
+    'TransitionType',
+    'state_machine'
+]

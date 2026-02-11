@@ -1,1 +1,4 @@
-"""Agent OS Kernel - 测试套件"""
+# -*- coding: utf-8 -*-
+"""
+Test Module for Agent-OS-Kernel
+"""
