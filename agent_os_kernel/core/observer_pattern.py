@@ -12,7 +12,7 @@ Features:
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Set, Type, OptionalVar
+from typing import Any, Callable, Dict, List, Set, TypeVar, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import threading
