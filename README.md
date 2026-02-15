@@ -10,6 +10,12 @@
 
 **支持中国模型**: DeepSeek | Qwen | Kimi | MiniMax ...
 
+---
+
+🦀 **Rust 重构版本已上线** · [分支 `rust-refactor-v3`](https://github.com/bit-cook/Agent-OS-Kernel/tree/rust-refactor-v3) · [快速开始](#-rust-重构版本快速开始)
+
+---
+
 [![CI](https://github.com/bit-cook/Agent-OS-Kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/bit-cook/Agent-OS-Kernel/actions)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/bit-cook/Agent-OS-Kernel/releases)
@@ -480,6 +486,27 @@ Agent OS Kernel 深度参考 [AIOS](https://github.com/agiresearch/AIOS) (COLM 2
 | 工具管理 | ✅ MCP + Native CLI |
 | 部署模式 | ✅ 本地/远程 |
 | CLI 工具 | ✅ kernel-cli |
+
+---
+
+## 🦀 Rust 重构版本快速开始
+
+```bash
+# 克隆并进入项目
+git clone https://github.com/bit-cook/Agent-OS-Kernel.git
+cd Agent-OS-Kernel
+
+# 切换到 Rust 重构分支
+git checkout rust-refactor-v3
+
+# 构建
+cargo build --release
+
+# 运行测试
+cargo test --lib
+```
+
+**分支**: [rust-refactor-v3](https://github.com/bit-cook/Agent-OS-Kernel/tree/rust-refactor-v3)
 
 ---
 
